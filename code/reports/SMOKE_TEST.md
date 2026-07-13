@@ -36,7 +36,7 @@ The bundled fixture covers all five code paths. Its 24-sample smoke test produce
 | Item | Result |
 | --- | --- |
 | Transcript source | Real `SBC041.trn` timestamps/text |
-| Profile source | `sbcsae_profile_turntaking_training_example.json` |
+| Profile source | `../intro/sbcsae_profile_turntaking_training_example.json` |
 | Audio | Synthetic mono WAV aligned to real intervals |
 | Prepared samples | 186 |
 | Labels observed | `C`, `BC`, `T`, `I`, `NA` |

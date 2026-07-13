@@ -72,13 +72,23 @@ def _command_evaluate(args: argparse.Namespace) -> None:
 
 def _command_smoke(args: argparse.Namespace) -> None:
     root = Path.cwd()
+    code_root = Path(__file__).resolve().parents[2]
+    repository_root = code_root.parent
     work = Path(args.work_dir)
     work.mkdir(parents=True, exist_ok=True)
-    local_trn = root / "data" / "sbcsae" / "transcripts_trn" / "TRN" / "SBC041.trn"
-    local_profile = root / "sbcsae_profile_turntaking_training_example.json"
+    local_trn_candidates = (
+        root / "data" / "sbcsae" / "transcripts_trn" / "TRN" / "SBC041.trn",
+        repository_root / "data" / "sbcsae" / "transcripts_trn" / "TRN" / "SBC041.trn",
+    )
+    local_trn = next(
+        (path for path in local_trn_candidates if path.is_file()), local_trn_candidates[0]
+    )
+    local_profile = (
+        repository_root / "intro" / "sbcsae_profile_turntaking_training_example.json"
+    )
     use_local = local_trn.is_file() and local_profile.is_file() and not args.bundled_fixture
-    trn = local_trn if use_local else root / "examples" / "smoke.trn"
-    profile = local_profile if use_local else root / "examples" / "smoke_profile.json"
+    trn = local_trn if use_local else code_root / "examples" / "smoke.trn"
+    profile = local_profile if use_local else code_root / "examples" / "smoke_profile.json"
     manifest = work / "samples.jsonl"
     data_summary = prepare_sbcsae(
         trn_path=trn,
