@@ -1,0 +1,20 @@
+{
+  "model": {
+    "audio_backend": "statistical",
+    "statistical_dimension": 24,
+    "text_dimension": 128,
+    "profile_buckets": 512,
+    "profile_embedding_dimension": 16,
+    "hidden_dimension": 64,
+    "dropout": 0.1
+  },
+  "train": {
+    "epochs": 6,
+    "batch_size": 32,
+    "learning_rate": 0.002,
+    "weight_decay": 0.0001,
+    "profile_dropout": 0.5,
+    "seed": 13,
+    "device": "auto"
+  }
+}

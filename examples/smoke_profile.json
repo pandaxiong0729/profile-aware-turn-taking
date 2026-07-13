@@ -1,0 +1,24 @@
+{
+  "profile": {
+    "speaker_A": {
+      "age_group": "35-44",
+      "gender": "female",
+      "social_role": "dietician_nutritionist",
+      "background": "education=M.A.; current_region=California"
+    },
+    "speaker_B": {
+      "age_group": "35-44",
+      "gender": "female",
+      "social_role": "patient_student",
+      "background": "education=post-M.A.; current_region=California"
+    },
+    "relationship": "dietician_patient",
+    "situation": "diabetes_diet_consultation"
+  },
+  "annotation_only_not_model_input": {
+    "speaker_mapping": {
+      "speaker_A": "KRISTIN",
+      "speaker_B": "PAIGE"
+    }
+  }
+}
