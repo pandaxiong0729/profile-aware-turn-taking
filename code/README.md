@@ -171,7 +171,7 @@ profile-turntaking audit-preprocessed `
 
 本次完整统计见 [reports/DATA_PREPARATION_REPORT.md](reports/DATA_PREPARATION_REPORT.md)，异常与未解决限制见 [reports/DATA_PREPARATION_ISSUES.md](reports/DATA_PREPARATION_ISSUES.md)，字段定义见 [docs/DATA_SCHEMA.md](docs/DATA_SCHEMA.md)，目录与数据流见 [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md)。
 
-## 现成大模型 Prompt 低成本验证
+## 文本大模型 Prompt 辅助基线
 
 在正式训练前，可以不更新任何模型参数，先把同一批验证/测试样本分别组织成 `hidden / given / shuffled` profile prompt，调用现成文本大模型做五分类。代码会把真实 API 请求与 gold 文件分离，并支持断点续跑和成对评分：
 
@@ -186,6 +186,20 @@ python scripts/run_prompt_baseline.py prepare `
 完整的接口调用、样本规模和结果判断说明见 [docs/PROMPT_BASELINE.md](docs/PROMPT_BASELINE.md)。这是看不到音频声学信息的文本 prompt baseline，不替代正式模型训练。
 
 本机 Qwen3-4B 的 500 条正式测试结果见 [reports/PROMPT_BASELINE_QWEN3_4B_REPORT.md](reports/PROMPT_BASELINE_QWEN3_4B_REPORT.md)。该实验得到负/不确定结果：`given` Macro-F1 为 0.1957，低于 `hidden` 的 0.2371；这说明文本 profile 会改变预测，但尚未证明它能稳定提升 40 ms 话轮判断。
+
+## 音频 + Profile MLLM 低成本验证
+
+真正对应当前研究问题的 prompt pilot 使用现成音频 MLLM，输入只有同一段 `[t-30s, t]` 单声道 WAV 和 fixed-template profile，不输入转写。每个样本仍做 `hidden / given / shuffled` 三条件对照，并用音频 SHA-256 验证三条件音频完全相同：
+
+```powershell
+python scripts/run_mllm_prompt_baseline.py prepare `
+  --manifest ../data/processed/sbcsae_mvp/manifest.jsonl `
+  --output-dir ../artifacts/mllm-prompt-baseline/qwen2.5-omni-3b/pilot-1-per-class `
+  --split test `
+  --max-per-class 1
+```
+
+完整的模型文件、运行和评分命令见 [docs/MLLM_PROMPT_BASELINE.md](docs/MLLM_PROMPT_BASELINE.md)。本机 Qwen2.5-Omni-3B Q4 pilot 的结果见 [reports/MLLM_PROMPT_QWEN2_5_OMNI_3B_REPORT.md](reports/MLLM_PROMPT_QWEN2_5_OMNI_3B_REPORT.md)：15/15 请求有效，但模型在五个样本的三种 profile 条件下全部输出 `I`，因此这是“链路可用、当前小模型无正向 profile 信号”的负向 smoke test，不是正式统计结论。
 
 ## 查看一条真实数据和训练输出
 

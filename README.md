@@ -14,3 +14,5 @@
 - 想安装并运行：进入 [`code/`](code/) 并按照其中的 README 操作。
 
 当前版本实现五分类 `C / BC / T / I / NA`，并支持同一 checkpoint 下的 profile `hidden / given / shuffled` 对照实验。
+
+零训练的真实音频 MLLM pilot 见 [`code/docs/MLLM_PROMPT_BASELINE.md`](code/docs/MLLM_PROMPT_BASELINE.md)，本机结果见 [`code/reports/MLLM_PROMPT_QWEN2_5_OMNI_3B_REPORT.md`](code/reports/MLLM_PROMPT_QWEN2_5_OMNI_3B_REPORT.md)。

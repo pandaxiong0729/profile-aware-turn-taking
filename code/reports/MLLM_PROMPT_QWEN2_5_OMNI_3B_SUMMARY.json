@@ -1,0 +1,51 @@
+{
+  "task": "inference_only_audio_profile_mllm_baseline",
+  "training_performed": false,
+  "model": "ggml-org/Qwen2.5-Omni-3B-GGUF",
+  "model_revision": "75f1b73b657a50f5092502799457ccb4a4a1f9df",
+  "model_file": "Qwen2.5-Omni-3B-Q4_K_M.gguf",
+  "mmproj_file": "mmproj-Qwen2.5-Omni-3B-Q8_0.gguf",
+  "runtime": "llama.cpp b9987 (ad8d82199)",
+  "hardware": "NVIDIA GeForce RTX 5060 Laptop GPU",
+  "peak_vram_mib": 4022,
+  "split": "test",
+  "seed": 13,
+  "context_seconds": 30.0,
+  "horizon_ms": 40,
+  "selected_samples": 5,
+  "samples_per_class": 1,
+  "requests": 15,
+  "valid_requests": 15,
+  "transcript_is_model_input": false,
+  "training_target_is_model_input": false,
+  "latency_ms": {
+    "mean": 5965.807,
+    "median": 4167.048,
+    "min": 4087.761,
+    "max": 11209.379
+  },
+  "metrics": {
+    "hidden": {
+      "macro_f1": 0.06666666666666668,
+      "balanced_accuracy": 0.2,
+      "accuracy": 0.2
+    },
+    "given": {
+      "macro_f1": 0.06666666666666668,
+      "balanced_accuracy": 0.2,
+      "accuracy": 0.2
+    },
+    "shuffled": {
+      "macro_f1": 0.06666666666666668,
+      "balanced_accuracy": 0.2,
+      "accuracy": 0.2
+    }
+  },
+  "given_minus_hidden_macro_f1": 0.0,
+  "prediction_distribution": {
+    "hidden": {"I": 5},
+    "given": {"I": 5},
+    "shuffled": {"I": 5}
+  },
+  "interpretation": "Pipeline smoke test succeeded, but the small quantized model collapsed to I and provides no positive profile signal on this five-sample pilot."
+}
