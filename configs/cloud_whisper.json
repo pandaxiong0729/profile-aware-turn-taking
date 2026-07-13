@@ -1,0 +1,21 @@
+{
+  "model": {
+    "audio_backend": "whisper",
+    "whisper_model": "openai/whisper-small",
+    "freeze_audio_encoder": true,
+    "text_dimension": 128,
+    "profile_buckets": 2048,
+    "profile_embedding_dimension": 32,
+    "hidden_dimension": 256,
+    "dropout": 0.15
+  },
+  "train": {
+    "epochs": 10,
+    "batch_size": 8,
+    "learning_rate": 0.0003,
+    "weight_decay": 0.0001,
+    "profile_dropout": 0.5,
+    "seed": 13,
+    "device": "auto"
+  }
+}
