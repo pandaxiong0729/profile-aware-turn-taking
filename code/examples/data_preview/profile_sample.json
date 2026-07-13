@@ -1,0 +1,25 @@
+{
+  "schema_version": "1.0",
+  "preview_status": "fully_synthetic_no_personal_data",
+  "profile": {
+    "speaker_A": {
+      "age_group": "25-34",
+      "gender": "unknown",
+      "social_role": "project_coordinator",
+      "background": "synthetic preview participant; no corpus identity"
+    },
+    "speaker_B": {
+      "age_group": "35-44",
+      "gender": "unknown",
+      "social_role": "research_assistant",
+      "background": "synthetic preview participant; no corpus identity"
+    },
+    "relationship": "colleagues",
+    "situation": "collaborative_task"
+  },
+  "profile_provenance": {
+    "speaker_A": "synthetic_preview",
+    "speaker_B": "synthetic_preview",
+    "relationship_situation": "synthetic_preview"
+  }
+}

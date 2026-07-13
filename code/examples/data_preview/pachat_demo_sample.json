@@ -1,0 +1,44 @@
+{
+  "schema_version": "1.0",
+  "dataset_name": "Persona-Dialogue",
+  "model_name": "PAChat",
+  "dataset_scope": "official_project_page_demo_text_only",
+  "content_status": "paraphrased_from_official_project_page_for_schema_review",
+  "license_status": "not_specified_in_official_demo_repository",
+  "audio_included": false,
+  "case": {
+    "case_id": "pachat-demo-01",
+    "scenario": "Family life",
+    "theme": "Weekly Grocery Shopping List"
+  },
+  "profile": {
+    "profile_id": "pachat-demo-01-profile-01",
+    "name": "George Hanson",
+    "role": "Father",
+    "natural_language_profile": [
+      "George is portrayed as a middle-aged father who wears glasses and laughs warmly.",
+      "He works in software and likes spending calm evenings with books.",
+      "His decisions are practical, and his humor is understated.",
+      "Although often busy, he is attentive and supportive toward his children.",
+      "He enjoys camping, fishing, and hiking."
+    ],
+    "structured_profile": {
+      "age_group": "unknown",
+      "gender": "unknown",
+      "social_role": "Father",
+      "background": "Middle-aged software engineer; practical, caring, and interested in outdoor activities."
+    }
+  },
+  "turn": {
+    "turn_id": "pachat-demo-01-turn-01",
+    "speaker": "George",
+    "speaker_type": "user",
+    "profile_id": "pachat-demo-01-profile-01",
+    "text": "We should review what the household needs to buy this week because several groceries are nearly gone.",
+    "continuous_timing_available": false,
+    "turntaking_label_eligible": false
+  },
+  "turntaking_output": null,
+  "why_no_turntaking_output": "The official demo provides isolated per-turn audio rather than a continuous multi-party timeline, so it cannot supply gap, overlap, or 40 ms turn-taking labels.",
+  "source_url": "https://persona-dialogue.github.io/"
+}

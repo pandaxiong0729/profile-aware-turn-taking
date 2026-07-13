@@ -1,0 +1,46 @@
+{
+  "result_status": "functional_smoke_not_research_result",
+  "checkpoint": "not_distributed_smoke_checkpoint",
+  "device": "cpu",
+  "train_samples": 81,
+  "val_samples": 19,
+  "best_val_macro_f1": 0.6042857142857143,
+  "history": [
+    {
+      "epoch": 1,
+      "train_loss": 1.579866098768917,
+      "val_macro_f1": 0.47943722943722944,
+      "val_accuracy": 0.5263157894736842
+    },
+    {
+      "epoch": 2,
+      "train_loss": 1.3477340038911796,
+      "val_macro_f1": 0.38398268398268404,
+      "val_accuracy": 0.3684210526315789
+    },
+    {
+      "epoch": 3,
+      "train_loss": 1.1736404012750696,
+      "val_macro_f1": 0.5542857142857144,
+      "val_accuracy": 0.5789473684210527
+    },
+    {
+      "epoch": 4,
+      "train_loss": 1.0612184508347218,
+      "val_macro_f1": 0.6042857142857143,
+      "val_accuracy": 0.631578947368421
+    },
+    {
+      "epoch": 5,
+      "train_loss": 1.0032967682237979,
+      "val_macro_f1": 0.4980952380952382,
+      "val_accuracy": 0.5263157894736842
+    },
+    {
+      "epoch": 6,
+      "train_loss": 0.9263003049073396,
+      "val_macro_f1": 0.5480952380952382,
+      "val_accuracy": 0.5789473684210527
+    }
+  ]
+}

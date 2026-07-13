@@ -9,7 +9,10 @@ turn-taking/
 ├── code/
 │   ├── configs/                  # 轻量 smoke 与 Whisper 训练配置
 │   ├── docs/                     # 数据 schema、项目结构和云端说明
-│   ├── examples/                 # 可公开的合成测试 fixture
+│   ├── examples/
+│   │   ├── smoke.trn             # 最小合成测试转写
+│   │   ├── smoke_profile.json    # 最小合成 profile
+│   │   └── data_preview/         # GitHub 可直接查看的数据/输出示例
 │   ├── reports/                  # 数据统计、问题清单和验证报告
 │   ├── scripts/                  # 下载与数据预览工具
 │   ├── src/profile_turntaking/   # 数据、模型、训练和评测实现
@@ -82,3 +85,9 @@ metrics.json + predictions.json + profile_comparison.csv
 | `profile_comparison.csv` | 最适合放进实验表的三条件摘要与 `given-hidden` 差值 |
 
 当前 `paired-profile-smoke-final` 只是功能 smoke。全量 SBCSAE 模型训练后应输出同样的目录结构，但其中的 checkpoint 和指标才是正式实验候选。
+
+## GitHub 中可直接审阅的示例
+
+`code/examples/data_preview/` 是刻意保留在 Git 中的小型审阅包。它包含一条 schema-faithful 的脱敏合成 SBCSAE manifest、独立 profile、4 秒合成音频、一条不含音频的 PaChat JSON，以及 smoke 的训练历史、17 条逐样本预测和 profile 比较表。
+
+这个目录只展示接口和输出格式。真实 SBCSAE、PaChat 音频、checkpoint 和全量 manifest 仍由 `.gitignore` 排除。

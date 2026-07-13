@@ -173,6 +173,8 @@ profile-turntaking audit-preprocessed `
 
 ## 查看一条真实数据和训练输出
 
+如果只想在 GitHub 上直接查看一个无需下载语料的示例，打开 [`examples/data_preview/`](examples/data_preview/)。其中包含脱敏合成 manifest、profile、短音频、PaChat 文本 demo 和 smoke 输出；每个文件都明确标注是否为合成数据以及是否可以作为研究结果。
+
 在仓库根目录运行：
 
 ```powershell

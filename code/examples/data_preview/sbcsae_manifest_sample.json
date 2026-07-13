@@ -1,0 +1,43 @@
+{
+  "schema_version": "1.0",
+  "preview_status": "schema_faithful_sanitized_synthetic_example",
+  "contains_original_sbcsae_audio": false,
+  "contains_original_sbcsae_transcript": false,
+  "sample_id": "SBC_EXAMPLE_001-000002100",
+  "conversation_id": "SBC_EXAMPLE_001",
+  "split_group": "speaker-component-synthetic-preview",
+  "split": "test",
+  "prediction_time_s": 2.1,
+  "horizon_ms": 40,
+  "window_start_s": 0.0,
+  "window_end_s": 2.1,
+  "audio_path": "synthetic_input.wav",
+  "audio_channel_policy": "already_mono_16khz_pcm",
+  "transcript_prefix": "[speaker_A 0.40-1.90] I will update the results table this afternoon.",
+  "text_source": "synthetic_causal_preview_not_corpus_text",
+  "profile": {
+    "speaker_A": {
+      "age_group": "25-34",
+      "gender": "unknown",
+      "social_role": "project_coordinator",
+      "background": "synthetic preview participant; no corpus identity"
+    },
+    "speaker_B": {
+      "age_group": "35-44",
+      "gender": "unknown",
+      "social_role": "research_assistant",
+      "background": "synthetic preview participant; no corpus identity"
+    },
+    "relationship": "colleagues",
+    "situation": "collaborative_task"
+  },
+  "profile_provenance": {
+    "speaker_A": "synthetic_preview",
+    "speaker_B": "synthetic_preview",
+    "relationship_situation": "synthetic_preview"
+  },
+  "label": "BC",
+  "label_source": "synthetic_preview_label_aligned_to_audio",
+  "gold_label": false,
+  "preview_note": "Formal samples use a 30-second input window; this tracked preview is shorter to keep the repository small."
+}
