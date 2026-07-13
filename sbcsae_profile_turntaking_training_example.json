@@ -1,0 +1,127 @@
+{
+  "schema_version": "1.0",
+  "task": "profile_conditioned_next_turn_event_prediction",
+  "label_space": [
+    "C",
+    "BC",
+    "T",
+    "PAUSE",
+    "GAP",
+    "I_COOP",
+    "I_COMP"
+  ],
+  "source": {
+    "dataset": "SBCSAE",
+    "conversation_id": "SBC041",
+    "conversation_title": "X Units of Insulin",
+    "audio_reference": "SBC041.wav",
+    "prediction_time_s": 46.46,
+    "prediction_horizon_ms": 40
+  },
+  "model_input": {
+    "audio_window": {
+      "start_s": 16.46,
+      "end_s": 46.46,
+      "duration_s": 30.0,
+      "format": "two_synchronized_speaker_streams_or_mixed_audio_with_speaker_activity"
+    },
+    "streaming_asr_prefix": {
+      "available_until_s": 46.46,
+      "is_causal": true,
+      "utterances": [
+        {
+          "speaker": "speaker_A",
+          "start_s": 17.25,
+          "end_s": 23.961,
+          "text": "First of all, we make a guesstimate of how many calories typically that you would need."
+        },
+        {
+          "speaker": "speaker_A",
+          "start_s": 23.961,
+          "end_s": 25.975,
+          "text": "We didn't do this last time, did we?"
+        },
+        {
+          "speaker": "speaker_B",
+          "start_s": 25.975,
+          "end_s": 26.603,
+          "text": "Hm-m."
+        },
+        {
+          "speaker": "speaker_A",
+          "start_s": 26.395,
+          "end_s": 27.818,
+          "text": "Okay. All right. Yeah."
+        },
+        {
+          "speaker": "speaker_A",
+          "start_s": 27.818,
+          "end_s": 32.349,
+          "text": "I think we were going to wait until you changed some things after you saw Doris."
+        },
+        {
+          "speaker": "speaker_A",
+          "start_s": 32.349,
+          "end_s": 37.533,
+          "text": "First of all, we make a good guesstimate of how many calories you need. That's always a tough one."
+        },
+        {
+          "speaker": "speaker_B",
+          "start_s": 37.862,
+          "end_s": 38.42,
+          "text": "Mhm."
+        },
+        {
+          "speaker": "speaker_A",
+          "start_s": 38.212,
+          "end_s": 45.823,
+          "text": "Most women, unless you work out a lot, probably aren't burning much more than eighteen hundred calories."
+        },
+        {
+          "speaker": "speaker_A",
+          "start_s": 45.823,
+          "end_s": 46.46,
+          "text": "To maybe...",
+          "partial": true
+        }
+      ]
+    },
+    "profile": {
+      "speaker_A": {
+        "age_group": "35-44",
+        "gender": "female",
+        "social_role": "dietician_nutritionist",
+        "background": "education=M.A.; current_region=California"
+      },
+      "speaker_B": {
+        "age_group": "35-44",
+        "gender": "female",
+        "social_role": "patient_student",
+        "background": "education=post-M.A.; current_region=California"
+      },
+      "relationship": "dietician_patient",
+      "situation": "diabetes_diet_consultation"
+    }
+  },
+  "training_target": {
+    "next_40ms_label": "BC"
+  },
+  "annotation_only_not_model_input": {
+    "speaker_mapping": {
+      "speaker_A": "KRISTIN",
+      "speaker_B": "PAIGE"
+    },
+    "profile_evidence": {
+      "speaker_A": "SBCSAE metadata: age 35, occupation Nutritionist, M.A.; session summary: dietician",
+      "speaker_B": "SBCSAE metadata: age 37, occupation Student, post-M.A.; session summary: patient",
+      "relationship_and_situation": "SBC041 CHAT comment: patient consulting dietician about diabetes management"
+    },
+    "label_evidence": {
+      "event_start_s": 46.466,
+      "event_end_s": 47.059,
+      "speaker": "speaker_B",
+      "observed_text": "Mhm",
+      "reason": "A short listener acknowledgement overlaps speaker_A and does not take the floor."
+    }
+  }
+}

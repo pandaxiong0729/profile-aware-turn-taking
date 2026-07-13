@@ -1,0 +1,23 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+
+# Generated experiment outputs and downloaded audio
+artifacts/
+reports/generated/
+data/processed/
+data/sbcsae/audio/
+data/sbcsae/**/*.wav
+data/sbcsae/**/*.mp3
+
+# The local corpus copy is useful for development but is not published with code.
+data/sbcsae/archives/
+data/sbcsae/transcripts_chat/
+data/sbcsae/transcripts_trn/
+data/sbcsae/metadata/
+
+# Local learning logs are environment-specific.
+.learnings/
+
