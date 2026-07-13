@@ -125,6 +125,8 @@ def _command_smoke(args: argparse.Namespace) -> None:
     work = Path(args.work_dir)
     work.mkdir(parents=True, exist_ok=True)
     local_trn_candidates = (
+        root / "data" / "sbcsae" / "openslr" / "TRN" / "SBC041.trn",
+        repository_root / "data" / "sbcsae" / "openslr" / "TRN" / "SBC041.trn",
         root / "data" / "sbcsae" / "transcripts_trn" / "TRN" / "SBC041.trn",
         repository_root / "data" / "sbcsae" / "transcripts_trn" / "TRN" / "SBC041.trn",
     )

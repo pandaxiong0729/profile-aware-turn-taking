@@ -60,7 +60,7 @@ python3.12 -m venv .venv
 .\.venv\Scripts\profile-turntaking smoke --work-dir artifacts/smoke
 ```
 
-如果本地存在 `data/sbcsae/transcripts_trn/TRN/SBC041.trn`，命令会解析真实 SBC041 转写和 profile，并根据真实时间戳生成合成单声道音频。克隆后的仓库没有 SBCSAE 时，会使用 `examples/` 中自带的无版权合成 fixture。
+如果本地存在 `data/sbcsae/openslr/TRN/SBC041.trn`，命令会解析真实 SBC041 转写和 profile，并根据真实时间戳生成合成单声道音频。克隆后的仓库没有 SBCSAE 时，会使用 `examples/` 中自带的无版权合成 fixture。
 
 若要强制使用自带 fixture：
 
@@ -97,10 +97,10 @@ SBCSAE 官方页面提供转写、时间戳以及 WAV 下载入口：
 
 ```powershell
 profile-turntaking prepare-sbcsae `
-  --trn data/sbcsae/transcripts_trn/TRN/SBC041.trn `
+  --trn ../data/sbcsae/openslr/TRN/SBC041.trn `
   --profile ../intro/sbcsae_profile_turntaking_training_example.json `
-  --audio data/sbcsae/audio/SBC041.wav `
-  --manifest data/processed/SBC041.jsonl `
+  --audio ../data/sbcsae/openslr/WAV/SBC041.wav `
+  --manifest ../data/processed/SBC041.jsonl `
   --conversation-id SBC041 `
   --split-group speakers-KRISTIN-PAIGE `
   --context-seconds 30 `
@@ -131,7 +131,7 @@ tar -xf ../data/sbcsae/archives/SBCSAE.tar.gz -C ../data/sbcsae/openslr
 profile-turntaking prepare-sbcsae-corpus `
   --trn-dir ../data/sbcsae/openslr/TRN `
   --chat-dir ../data/sbcsae/openslr/CHAT `
-  --metadata-dir ../data/sbcsae/openslr `
+  --metadata-dir ../data/sbcsae/metadata `
   --audio-dir ../data/sbcsae/openslr/WAV `
   --output-dir ../data/processed/sbcsae_catalog
 ```
@@ -169,7 +169,31 @@ profile-turntaking audit-preprocessed `
   --output ../data/processed/audit.json
 ```
 
-本次完整统计见 [reports/DATA_PREPARATION_REPORT.md](reports/DATA_PREPARATION_REPORT.md)，异常与未解决限制见 [reports/DATA_PREPARATION_ISSUES.md](reports/DATA_PREPARATION_ISSUES.md)，字段定义见 [docs/DATA_SCHEMA.md](docs/DATA_SCHEMA.md)。
+本次完整统计见 [reports/DATA_PREPARATION_REPORT.md](reports/DATA_PREPARATION_REPORT.md)，异常与未解决限制见 [reports/DATA_PREPARATION_ISSUES.md](reports/DATA_PREPARATION_ISSUES.md)，字段定义见 [docs/DATA_SCHEMA.md](docs/DATA_SCHEMA.md)，目录与数据流见 [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md)。
+
+## 查看一条真实数据和训练输出
+
+在仓库根目录运行：
+
+```powershell
+.\.venv\Scripts\python.exe code\scripts\export_data_preview.py
+```
+
+程序会在 `artifacts/data-preview/` 导出：
+
+- 一条真实 SBCSAE test 样本的 30 秒单声道 WAV、因果 transcript、完整 profile 和五分类目标标签；
+- 一条 PaChat 官方 demo 的 WAV、case、自然语言/结构化 profile 和 turn 文本；
+- 最后一次 smoke 的训练历史、同一样本 `hidden/given/shuffled` 预测、聚合指标和比较表。
+
+默认选择 test split 的第一条 `I`。查看指定样本时传入 manifest 中的 `sample_id`：
+
+```powershell
+.\.venv\Scripts\python.exe code\scripts\export_data_preview.py `
+  --sample-id SBC058-000716560 `
+  --output-dir artifacts/data-preview-SBC058
+```
+
+这只复制一个 30 秒窗口，不会复制整段 20 分钟录音。PaChat demo 是逐 turn 独立音频，因此预览中没有 turn-taking target；训练输出仍是功能 smoke，不是全量 SBCSAE 论文结果。
 
 ## 多会话云端数据
 
