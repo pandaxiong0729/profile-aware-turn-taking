@@ -10,6 +10,10 @@ from typing import Any
 from .data import merge_manifests, prepare_sbcsae
 from .evaluation import evaluate_checkpoint
 from .model import ModelConfig
+from .pachat_demo import prepare_pachat_demo
+from .quality import audit_preprocessed_data
+from .sbcsae_corpus import prepare_sbcsae_catalog
+from .sbcsae_manifest import prepare_sbcsae_manifests
 from .training import TrainConfig, train_model
 
 
@@ -41,6 +45,50 @@ def _prepare_from_args(args: argparse.Namespace) -> dict[str, Any]:
 
 def _command_prepare(args: argparse.Namespace) -> None:
     _print(_prepare_from_args(args))
+
+
+def _command_prepare_corpus(args: argparse.Namespace) -> None:
+    _print(
+        prepare_sbcsae_catalog(
+            trn_dir=args.trn_dir,
+            chat_dir=args.chat_dir,
+            metadata_dir=args.metadata_dir,
+            output_dir=args.output_dir,
+            audio_dir=args.audio_dir,
+        )
+    )
+
+
+def _command_prepare_pachat_demo(args: argparse.Namespace) -> None:
+    _print(prepare_pachat_demo(site_dir=args.site_dir, output_dir=args.output_dir))
+
+
+def _command_prepare_manifests(args: argparse.Namespace) -> None:
+    _print(
+        prepare_sbcsae_manifests(
+            catalog_dir=args.catalog_dir,
+            output_dir=args.output_dir,
+            context_seconds=args.context_seconds,
+            horizon_ms=args.horizon_ms,
+            frame_stride_ms=args.frame_stride_ms,
+            evaluation_stride_ms=args.evaluation_stride_ms,
+            max_train_per_class=args.max_train_per_class,
+            max_evaluation_per_class=args.max_evaluation_per_class,
+            seed=args.seed,
+            include_non_core_dyadic=args.include_non_core_dyadic,
+        )
+    )
+
+
+def _command_audit(args: argparse.Namespace) -> None:
+    _print(
+        audit_preprocessed_data(
+            sbcsae_catalog_dir=args.sbcsae_catalog_dir,
+            sbcsae_manifest=args.sbcsae_manifest,
+            pachat_demo_dir=args.pachat_demo_dir,
+            output_path=args.output,
+        )
+    )
 
 
 def _command_train(args: argparse.Namespace) -> None:
@@ -145,6 +193,48 @@ def build_parser() -> argparse.ArgumentParser:
     prepare.add_argument("--max-time-s", type=float)
     prepare.add_argument("--seed", type=int, default=13)
     prepare.set_defaults(func=_command_prepare)
+
+    corpus = subparsers.add_parser(
+        "prepare-sbcsae-corpus", help="normalize all SBCSAE transcripts, profiles, and issues"
+    )
+    corpus.add_argument("--trn-dir", required=True)
+    corpus.add_argument("--chat-dir", required=True)
+    corpus.add_argument("--metadata-dir", required=True)
+    corpus.add_argument("--output-dir", required=True)
+    corpus.add_argument("--audio-dir")
+    corpus.set_defaults(func=_command_prepare_corpus)
+
+    pachat = subparsers.add_parser(
+        "prepare-pachat-demo", help="normalize the official project-page Persona-Dialogue demos"
+    )
+    pachat.add_argument("--site-dir", required=True)
+    pachat.add_argument("--output-dir", required=True)
+    pachat.set_defaults(func=_command_prepare_pachat_demo)
+
+    manifests = subparsers.add_parser(
+        "prepare-sbcsae-manifests",
+        help="build leakage-safe weak-label training and natural-evaluation samples",
+    )
+    manifests.add_argument("--catalog-dir", required=True)
+    manifests.add_argument("--output-dir", required=True)
+    manifests.add_argument("--context-seconds", type=float, default=30.0)
+    manifests.add_argument("--horizon-ms", type=int, default=40)
+    manifests.add_argument("--frame-stride-ms", type=int, default=40)
+    manifests.add_argument("--evaluation-stride-ms", type=int, default=200)
+    manifests.add_argument("--max-train-per-class", type=int, default=10000)
+    manifests.add_argument("--max-evaluation-per-class", type=int, default=5000)
+    manifests.add_argument("--seed", type=int, default=13)
+    manifests.add_argument("--include-non-core-dyadic", action="store_true")
+    manifests.set_defaults(func=_command_prepare_manifests)
+
+    audit = subparsers.add_parser(
+        "audit-preprocessed", help="cross-check audio, profiles, labels, and split leakage"
+    )
+    audit.add_argument("--sbcsae-catalog-dir", required=True)
+    audit.add_argument("--sbcsae-manifest", required=True)
+    audit.add_argument("--pachat-demo-dir", required=True)
+    audit.add_argument("--output", required=True)
+    audit.set_defaults(func=_command_audit)
 
     merge = subparsers.add_parser("merge-manifests", help="merge manifests and re-split by group")
     merge.add_argument("--inputs", nargs="+", required=True)

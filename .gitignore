@@ -8,6 +8,7 @@ __pycache__/
 # Generated experiment outputs and downloaded audio
 artifacts/
 reports/generated/
+/data/
 data/processed/
 data/sbcsae/audio/
 data/sbcsae/**/*.wav
@@ -18,6 +19,10 @@ data/sbcsae/archives/
 data/sbcsae/transcripts_chat/
 data/sbcsae/transcripts_trn/
 data/sbcsae/metadata/
+data/pachat/
+data/processed/
+tmp/pdfs/
+models/
 
 # Local learning logs are environment-specific.
 .learnings/

@@ -13,4 +13,4 @@
 - 想检查一条输入样本：查看 [`intro/sbcsae_profile_turntaking_training_example.json`](intro/sbcsae_profile_turntaking_training_example.json)。
 - 想安装并运行：进入 [`code/`](code/) 并按照其中的 README 操作。
 
-当前公开版本实现五分类 `C / BC / T / I / NA`，并支持同一 checkpoint 下的 profile `hidden / given / shuffled` 对照实验。
+当前版本实现五分类 `C / BC / T / I / NA`，并支持同一 checkpoint 下的 profile `hidden / given / shuffled` 对照实验。

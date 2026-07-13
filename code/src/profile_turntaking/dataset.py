@@ -36,6 +36,20 @@ class ManifestDataset(Dataset[dict[str, Any]]):
         self.text_dimension = text_dimension
         self.profile_buckets = profile_buckets
         self.profile_mode = profile_mode
+        self._shuffled_profile_by_conversation: dict[str, dict[str, Any]] = {}
+        if profile_mode == "shuffled":
+            profile_by_conversation: dict[str, dict[str, Any]] = {}
+            for row in self.rows:
+                profile_by_conversation.setdefault(row["conversation_id"], row["profile"])
+            conversation_ids = sorted(profile_by_conversation)
+            if len(conversation_ids) == 1:
+                self._shuffled_profile_by_conversation[conversation_ids[0]] = UNKNOWN_PROFILE
+            else:
+                for index, conversation_id in enumerate(conversation_ids):
+                    source_id = conversation_ids[(index + 1) % len(conversation_ids)]
+                    self._shuffled_profile_by_conversation[conversation_id] = (
+                        profile_by_conversation[source_id]
+                    )
 
     def __len__(self) -> int:
         return len(self.rows)
@@ -44,7 +58,7 @@ class ManifestDataset(Dataset[dict[str, Any]]):
         if self.profile_mode == "hidden":
             return UNKNOWN_PROFILE
         if self.profile_mode == "shuffled":
-            return self.rows[(index + max(1, len(self.rows) // 2)) % len(self.rows)]["profile"]
+            return self._shuffled_profile_by_conversation[self.rows[index]["conversation_id"]]
         return self.rows[index]["profile"]
 
     def __getitem__(self, index: int) -> dict[str, Any]:

@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import torch
+
+from profile_turntaking.constants import PROFILE_FIELDS, UNKNOWN_PROFILE
 from profile_turntaking.data import (
     assign_splits,
     canonicalize_speakers,
@@ -9,11 +12,15 @@ from profile_turntaking.data import (
     parse_trn,
     transcript_prefix,
 )
+from profile_turntaking.dataset import ManifestDataset
+from profile_turntaking.features import profile_bucket_ids
 from profile_turntaking.schemas import Sample, Utterance
+from profile_turntaking.training import TrainConfig, _apply_profile_dropout
+from profile_turntaking.utils import write_jsonl
 
 
 def test_parse_trn_carries_forward_speaker() -> None:
-    rows = parse_trn(Path("examples/smoke.trn"))
+    rows = parse_trn(Path(__file__).parents[1] / "examples" / "smoke.trn")
     assert rows[0].speaker == "KRISTIN"
     assert len(rows) == 18
 
@@ -22,6 +29,65 @@ def test_canonicalize_speaker_mapping() -> None:
     rows = [Utterance(0.0, 1.0, "KRISTIN", "hello"), Utterance(1.0, 2.0, "PAIGE", "hi")]
     mapped = canonicalize_speakers(rows, {"KRISTIN": "speaker_A", "PAIGE": "speaker_B"})
     assert [row.speaker for row in mapped] == ["speaker_A", "speaker_B"]
+
+
+def test_canonicalize_explicit_mapping_skips_environment() -> None:
+    rows = [
+        Utterance(0.0, 0.5, ">ENV", "drawer"),
+        Utterance(0.5, 1.0, "KRISTIN", "hello"),
+        Utterance(1.0, 1.5, "PAIGE", "hi"),
+    ]
+    mapped = canonicalize_speakers(rows, {"KRISTIN": "speaker_A", "PAIGE": "speaker_B"})
+    assert [row.speaker for row in mapped] == ["speaker_A", "speaker_B"]
+
+
+def test_parse_part1_space_separated_timestamps(tmp_path: Path) -> None:
+    path = tmp_path / "part1.trn"
+    path.write_text(
+        "0.00 1.25\tALICE:\tHello.\n1.25 2.00\t\tStill Alice.\n",
+        encoding="utf-8",
+    )
+    rows = parse_trn(path)
+    assert [(row.start_s, row.end_s, row.speaker) for row in rows] == [
+        (0.0, 1.25, "ALICE"),
+        (1.25, 2.0, "ALICE"),
+    ]
+
+
+def test_parse_part1_inline_speaker(tmp_path: Path) -> None:
+    path = tmp_path / "inline-speaker.trn"
+    path.write_text(
+        "0.00 1.25 ALICE:\tHello.\n1.25 2.00\tStill Alice.\n",
+        encoding="utf-8",
+    )
+    rows = parse_trn(path)
+    assert [row.speaker for row in rows] == ["ALICE", "ALICE"]
+    assert [row.text for row in rows] == ["Hello.", "Still Alice."]
+
+
+def test_parse_non_strict_records_bad_interval(tmp_path: Path) -> None:
+    path = tmp_path / "bad.trn"
+    path.write_text(
+        "0.0\t1.0\tALICE:\tHello.\n1.0\t1.0\tALICE:\tBad.\n",
+        encoding="utf-8",
+    )
+    diagnostics: list[dict[str, object]] = []
+    rows = parse_trn(path, strict=False, diagnostics=diagnostics)
+    assert len(rows) == 1
+    assert diagnostics[0]["reason"] == "non_positive_interval"
+
+
+def test_parse_shifted_timestamp_and_blank_speaker_marker(tmp_path: Path) -> None:
+    path = tmp_path / "shifted.trn"
+    path.write_text(
+        "0.0\t1.0\tALICE:\tHello.\n"
+        "\t1.0 2.0\t\tShifted but recoverable.\n"
+        "2.0\t3.0 :\tBlank speaker marker.\n",
+        encoding="utf-8",
+    )
+    rows = parse_trn(path)
+    assert len(rows) == 3
+    assert [row.speaker for row in rows] == ["ALICE", "ALICE", "ALICE"]
 
 
 def test_five_class_label_rules() -> None:
@@ -91,3 +157,38 @@ def test_three_groups_always_create_three_splits() -> None:
     ]
     assigned = assign_splits(samples)
     assert {sample.split for sample in assigned} == {"train", "val", "test"}
+
+
+def test_shuffled_profiles_are_stable_and_cross_conversation(tmp_path: Path) -> None:
+    profile_a = {"name": "profile-a"}
+    profile_b = {"name": "profile-b"}
+    manifest = tmp_path / "manifest.jsonl"
+    write_jsonl(
+        manifest,
+        [
+            {"conversation_id": "A", "split": "test", "profile": profile_a},
+            {"conversation_id": "A", "split": "test", "profile": profile_a},
+            {"conversation_id": "B", "split": "test", "profile": profile_b},
+        ],
+    )
+    dataset = ManifestDataset(str(manifest), split="test", profile_mode="shuffled")
+    assert dataset._profile_for_index(0) == profile_b
+    assert dataset._profile_for_index(1) == profile_b
+    assert dataset._profile_for_index(2) == profile_a
+
+
+def test_profile_dropout_uses_same_unknown_encoding_as_hidden_evaluation() -> None:
+    profile_ids = torch.full((3, len(PROFILE_FIELDS)), 7, dtype=torch.long)
+    unknown = torch.from_numpy(profile_bucket_ids(UNKNOWN_PROFILE, buckets=512))
+    dropped = _apply_profile_dropout(
+        profile_ids,
+        probability=1.0,
+        unknown_profile_ids=unknown,
+    )
+    assert torch.equal(dropped, unknown.expand_as(profile_ids))
+
+
+def test_train_config_from_dict_keeps_profile_dropout_and_seed() -> None:
+    config = TrainConfig.from_dict({"profile_dropout": 0.25, "seed": 7, "ignored": 1})
+    assert config.profile_dropout == 0.25
+    assert config.seed == 7

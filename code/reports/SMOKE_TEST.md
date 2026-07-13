@@ -1,57 +1,42 @@
-# Smoke test report
+# Smoke 与质量验证报告
 
-Date: 2026-07-13
-Environment: Windows, Python 3.12, CPU-only PyTorch
+日期：2026-07-13
+环境：Windows、Python 3.12、CPU PyTorch
 
-## Verification completed
+## 最终验证
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest
-.\.venv\Scripts\python.exe -m compileall -q src scripts
-.\.venv\Scripts\profile-turntaking.exe smoke --bundled-fixture --work-dir artifacts\smoke-bundled-five
-.\.venv\Scripts\profile-turntaking.exe smoke --work-dir artifacts\smoke-final-real
+python -m pytest tests
+python -m compileall -q src scripts
+profile-turntaking audit-preprocessed <完整数据参数>
+profile-turntaking smoke --bundled-fixture --max-per-class 32 --work-dir <临时目录>
 ```
 
-Results:
+| 检查 | 结果 |
+| --- | --- |
+| 单元/集成测试 | 20 passed |
+| Python bytecode compilation | passed |
+| 全量数据跨产物审计 | 19/19 passed，0 error，0 warning failure |
+| Bundled fixture prepare | passed |
+| CPU train + checkpoint reload | passed |
+| 同 checkpoint `hidden/given/shuffled` | passed |
 
-- Unit/integration tests: 7 passed.
-- Python bytecode compilation: passed.
-- Bundled fixture: prepare, CPU train, checkpoint reload and three-mode evaluation passed.
-- Local SBC041: parsed 117 real TRN utterance units from the first 120 seconds, generated aligned mono synthetic audio, trained a checkpoint and evaluated it successfully.
-
-## Five-class fixture coverage
+## Bundled fixture 覆盖
 
 | Label | Prepared samples |
 | --- | ---: |
-| `C` | 64 |
-| `BC` | 54 |
+| `C` | 32 |
+| `BC` | 32 |
 | `T` | 10 |
 | `I` | 11 |
-| `NA` | 39 |
+| `NA` | 32 |
 
-The bundled fixture covers all five code paths. Its 24-sample smoke test produced the expected `profile_comparison.csv` with hidden/given/shuffled rows and a `given_minus_hidden` row.
+共 117 条样本，拆为 train 81、val 19、test 17；五个标签代码路径均被覆盖。训练只产生一个 checkpoint，评测对同一批 17 个 test sample IDs 依次运行三种 profile 条件并成功写出 `metrics.json`、`predictions.json` 和 `profile_comparison.csv`。
 
-## Local SBC041 pipeline
+fixture 只有一段合成会话，所以 `shuffled` 会安全退化为全 `unknown`，不能作为 shuffled 负控制的科学结果。真实 SBCSAE test 有 3 段独立会话，代码会按会话整体轮换到另一段会话的 profile。
 
-| Item | Result |
-| --- | --- |
-| Transcript source | Real `SBC041.trn` timestamps/text |
-| Profile source | `../intro/sbcsae_profile_turntaking_training_example.json` |
-| Audio | Synthetic mono WAV aligned to real intervals |
-| Prepared samples | 186 |
-| Labels observed | `C`, `BC`, `T`, `I`, `NA` |
-| Best validation Macro-F1 | 0.6275 |
-| Hidden test Macro-F1 | 0.4668 |
-| Given test Macro-F1 | 0.4079 |
+## 不能当作论文结果的原因
 
-These numbers are not research results. The run uses one conversation, synthetic audio, 3-second context, heuristic TRN labels, and a smoke-only stratified split. In particular, the `Given < Hidden` result is neither surprising nor interpretable because every sample has the same profile and the audio contains synthetic tones.
+Smoke run 使用一段自行编写的合成对话、合成音频、3 秒上下文、弱标签和样本级分层拆分，只证明数据准备、训练、checkpoint 重载和 paired profile 评测链路可运行。所有 smoke Macro-F1 都不得引用为研究结果。
 
-## Remaining scientific-data gate
-
-Before reporting the experiment described in the research Markdown:
-
-1. download real SBCSAE WAV files;
-2. use at least three speaker-connected split groups;
-3. replace TRN-only silence boundaries with audio VAD/overlap detection;
-4. run 30-second context with a frozen Whisper encoder;
-5. retain natural test distribution and inspect rare-class support.
+全量 SBCSAE 数据已经准备好，但在完成 VAD/overlap refinement、人工稀有类抽查和多随机种子训练之前，也不应把弱标签开发结果写成最终结论。

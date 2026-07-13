@@ -14,6 +14,8 @@ C / BC / T / I / NA
 
 核心结果写入 `profile_comparison.csv`，直接对应研究文档中的五分类评测表。
 
+这里的主比较始终是同一个模型、同一个 checkpoint 和同一批样本，只改变 profile 条件。Talking Turns 等公开模型可以作为可选骨干或外部参考，但不替代这个 paired ablation。
+
 ## 当前实现
 
 - 解析 SBCSAE `.trn` 时间戳并映射 Speaker A/B；
@@ -107,6 +109,68 @@ profile-turntaking prepare-sbcsae `
 
 如果不提供 `--audio`，程序会生成 synthetic WAV，但摘要中的 `audio_source` 会明确写成 `synthetic_from_real_timestamps`。
 
+## 全量 SBCSAE 预处理
+
+下面命令从 OpenSLR 下载完整归档并可断点续传。命令假设当前位于 `code/`，下载数据不会进入 Git：
+
+```powershell
+New-Item -ItemType Directory -Force ../data/sbcsae/archives | Out-Null
+python scripts/download_resumable.py `
+  --url https://us.openslr.org/resources/155/SBCSAE.tar.gz `
+  --output ../data/sbcsae/archives/SBCSAE.tar.gz `
+  --expected-bytes 6186324893 `
+  --workers 8
+
+New-Item -ItemType Directory -Force ../data/sbcsae/openslr | Out-Null
+tar -xf ../data/sbcsae/archives/SBCSAE.tar.gz -C ../data/sbcsae/openslr
+```
+
+先规范化全 60 段会话、metadata、说话人和 profile：
+
+```powershell
+profile-turntaking prepare-sbcsae-corpus `
+  --trn-dir ../data/sbcsae/openslr/TRN `
+  --chat-dir ../data/sbcsae/openslr/CHAT `
+  --metadata-dir ../data/sbcsae/openslr `
+  --audio-dir ../data/sbcsae/openslr/WAV `
+  --output-dir ../data/processed/sbcsae_catalog
+```
+
+再从 16 段 core dyadic 会话建立 speaker-disjoint manifest：
+
+```powershell
+profile-turntaking prepare-sbcsae-manifests `
+  --catalog-dir ../data/processed/sbcsae_catalog `
+  --output-dir ../data/processed/sbcsae_mvp `
+  --context-seconds 30 `
+  --horizon-ms 40 `
+  --frame-stride-ms 40 `
+  --evaluation-stride-ms 200 `
+  --max-train-per-class 5000 `
+  --max-evaluation-per-class 5000 `
+  --seed 13
+```
+
+如果已经取得官方 PaChat 项目页源码，可以单独规范化 demo；它不会进入 turn-taking 训练：
+
+```powershell
+profile-turntaking prepare-pachat-demo `
+  --site-dir ../data/pachat/official_site/<checkout-directory> `
+  --output-dir ../data/processed/pachat_demo
+```
+
+最后执行跨产物审计：
+
+```powershell
+profile-turntaking audit-preprocessed `
+  --sbcsae-catalog-dir ../data/processed/sbcsae_catalog `
+  --sbcsae-manifest ../data/processed/sbcsae_mvp/manifest.jsonl `
+  --pachat-demo-dir ../data/processed/pachat_demo `
+  --output ../data/processed/audit.json
+```
+
+本次完整统计见 [reports/DATA_PREPARATION_REPORT.md](reports/DATA_PREPARATION_REPORT.md)，异常与未解决限制见 [reports/DATA_PREPARATION_ISSUES.md](reports/DATA_PREPARATION_ISSUES.md)，字段定义见 [docs/DATA_SCHEMA.md](docs/DATA_SCHEMA.md)。
+
 ## 多会话云端数据
 
 每段会话先生成独立 manifest。具有共同说话人的会话必须传入相同的 `--split-group`。完成后统一合并并重新划分：
@@ -135,6 +199,8 @@ profile-turntaking evaluate `
   --output-dir artifacts/run/evaluation
 ```
 
+`evaluate` 只加载一次指定 checkpoint，并用相同 `sample_id` 顺序依次生成 `hidden / given / shuffled` 三组预测。训练中的 profile dropout 与评测 `hidden` 都使用完全相同的全 `unknown` profile 编码；`shuffled` 按会话整体换成另一会话的 profile。
+
 Whisper 云端配置：
 
 ```powershell
@@ -157,7 +223,7 @@ profile-turntaking train `
 4. 新说话人在当前 40 ms 开始并从上一说话人接过话轮：`T`；
 5. 其他情况：`C`。
 
-当前 `.trn` 时间戳是 intonation-unit 级，不能替代正式 VAD。Smoke run 的目的仅为验证系统。正式大规模实验必须用真实 WAV 重新运行 VAD/overlap detection，并抽查 BC、I 和时间边界。
+当前 `.trn` 时间戳是 intonation-unit 级，不能替代正式 VAD。全量 manifest 也是自动弱标签，不是人工 gold。正式大规模实验必须用真实 WAV 重新运行 VAD/overlap detection，并抽查 BC、I 和时间边界。
 
 ## 测试
 

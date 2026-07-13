@@ -13,8 +13,9 @@ from torch import nn
 from torch.optim import AdamW
 from torch.utils.data import DataLoader
 
-from .constants import LABELS
+from .constants import LABELS, UNKNOWN_PROFILE
 from .dataset import ManifestDataset
+from .features import profile_bucket_ids
 from .metrics import classification_metrics
 from .model import ModelConfig, ProfileTurnModel
 from .utils import set_seed, write_json
@@ -34,6 +35,24 @@ class TrainConfig:
     def from_dict(cls, payload: dict[str, Any]) -> "TrainConfig":
         allowed = set(cls.__dataclass_fields__)
         return cls(**{key: value for key, value in payload.items() if key in allowed})
+
+
+def _apply_profile_dropout(
+    profile_ids: torch.Tensor,
+    *,
+    probability: float,
+    unknown_profile_ids: torch.Tensor,
+) -> torch.Tensor:
+    if not 0.0 <= probability <= 1.0:
+        raise ValueError("profile_dropout must be between 0 and 1")
+    if probability == 0.0:
+        return profile_ids
+    drop = torch.rand(profile_ids.shape[0], device=profile_ids.device) < probability
+    if not bool(drop.any()):
+        return profile_ids
+    result = profile_ids.clone()
+    result[drop] = unknown_profile_ids
+    return result
 
 
 def resolve_device(name: str) -> torch.device:
@@ -106,6 +125,9 @@ def train_model(
         weight_decay=train_config.weight_decay,
     )
     criterion = nn.CrossEntropyLoss(weight=_class_weights(train_dataset, device))
+    unknown_profile_ids = torch.from_numpy(
+        profile_bucket_ids(UNKNOWN_PROFILE, model_config.profile_buckets)
+    ).to(device)
     history: list[dict[str, Any]] = []
     best_macro_f1 = -1.0
     best_state: dict[str, torch.Tensor] | None = None
@@ -118,10 +140,11 @@ def train_model(
             text_input = batch["text_input"].to(device)
             profile_ids = batch["profile_ids"].to(device)
             labels = batch["label"].to(device)
-            if train_config.profile_dropout > 0:
-                drop = torch.rand(profile_ids.shape[0], device=device) < train_config.profile_dropout
-                profile_ids = profile_ids.clone()
-                profile_ids[drop] = 0
+            profile_ids = _apply_profile_dropout(
+                profile_ids,
+                probability=train_config.profile_dropout,
+                unknown_profile_ids=unknown_profile_ids,
+            )
             optimizer.zero_grad(set_to_none=True)
             logits = model(audio_input, text_input, profile_ids)
             loss = criterion(logits, labels)

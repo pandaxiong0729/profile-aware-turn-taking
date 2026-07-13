@@ -17,6 +17,7 @@ from .utils import write_json, write_jsonl
 
 _ANNOTATION_RE = re.compile(r"\[[^\]]*\]|<[^>]*>|\([^)]*\)|[@%=~]|\d")
 _SPACE_RE = re.compile(r"\s+")
+_NUMBER_PREFIX_RE = re.compile(r"^[-+]?(?:\d+(?:\.\d*)?|\.\d+)")
 
 
 def clean_transcript_text(text: str) -> str:
@@ -31,37 +32,84 @@ def is_backchannel(utterance: Utterance) -> bool:
     return bool(cleaned) and utterance.end_s - utterance.start_s <= 1.5 and cleaned in BACKCHANNEL_WORDS
 
 
-def parse_trn(path: str | Path) -> list[Utterance]:
-    """Parse SBCSAE TRN, carrying forward blank speaker cells."""
+def parse_trn(
+    path: str | Path,
+    *,
+    strict: bool = True,
+    diagnostics: list[dict[str, Any]] | None = None,
+) -> list[Utterance]:
+    """Parse both SBCSAE TRN layouts, carrying forward blank speaker cells.
+
+    Part 1 stores start and end timestamps in the first tab-delimited cell,
+    whereas later parts normally use separate cells. In non-strict mode,
+    malformed rows are appended to ``diagnostics`` and skipped.
+    """
     utterances: list[Utterance] = []
     current_speaker = ""
     for line_number, raw_line in enumerate(Path(path).read_text(encoding="utf-8", errors="replace").splitlines(), 1):
         if not raw_line.strip():
             continue
         parts = raw_line.split("\t")
-        if len(parts) < 3:
+        while parts and not parts[0].strip():
+            parts.pop(0)
+        if not parts:
+            continue
+        first_cell = parts[0].strip().split()
+        if len(first_cell) >= 2:
+            timestamp_cells = first_cell[:2]
+            inline_tail = " ".join(first_cell[2:]).strip()
+            remainder = ([inline_tail] if inline_tail else []) + [
+                part.strip() for part in parts[1:]
+            ]
+        elif len(parts) >= 3:
+            timestamp_cells = [parts[0].strip(), parts[1].strip()]
+            remainder = [part.strip() for part in parts[2:]]
+        else:
+            if diagnostics is not None:
+                diagnostics.append(
+                    {"line_number": line_number, "reason": "too_few_columns", "raw": raw_line}
+                )
             continue
         try:
-            start_s = float(parts[0].strip())
-            end_s = float(parts[1].strip())
-        except ValueError:
+            start_match = _NUMBER_PREFIX_RE.match(timestamp_cells[0])
+            end_match = _NUMBER_PREFIX_RE.match(timestamp_cells[1])
+            if start_match is None or end_match is None:
+                raise ValueError
+            start_s = float(start_match.group())
+            end_s = float(end_match.group())
+        except (AttributeError, ValueError):
+            if diagnostics is not None:
+                diagnostics.append(
+                    {"line_number": line_number, "reason": "invalid_timestamp", "raw": raw_line}
+                )
             continue
-        remainder = [part.strip() for part in parts[2:]]
         speaker_cell = ""
         text_parts: list[str] = []
         for index, cell in enumerate(remainder):
-            if index == 0 and cell.endswith(":"):
+            if index == 0 and cell.endswith(":") and cell != ":":
                 speaker_cell = cell[:-1].strip()
             elif cell:
                 text_parts.append(cell)
         if speaker_cell:
             current_speaker = speaker_cell
         if not current_speaker:
+            if diagnostics is not None:
+                diagnostics.append(
+                    {"line_number": line_number, "reason": "missing_speaker", "raw": raw_line}
+                )
             continue
         text = " ".join(text_parts).strip()
         if end_s <= start_s:
-            raise ValueError(f"Invalid interval at {path}:{line_number}")
+            if diagnostics is not None:
+                diagnostics.append(
+                    {"line_number": line_number, "reason": "non_positive_interval", "raw": raw_line}
+                )
+            if strict:
+                raise ValueError(f"Invalid interval at {path}:{line_number}")
+            continue
         utterances.append(Utterance(start_s, end_s, current_speaker, text))
+    if not utterances and Path(path).stat().st_size:
+        raise ValueError(f"No utterances parsed from non-empty TRN: {path}")
     return utterances
 
 
@@ -84,6 +132,8 @@ def canonicalize_speakers(
         raw = utterance.speaker.upper()
         if raw in provided:
             canonical = provided[raw]
+        elif provided:
+            continue
         else:
             if raw not in order:
                 if len(order) >= 2:
