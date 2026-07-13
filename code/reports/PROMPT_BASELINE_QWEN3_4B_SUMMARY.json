@@ -1,0 +1,55 @@
+{
+  "report_date": "2026-07-14",
+  "experiment": "text_only_zero_shot_profile_prompt_baseline",
+  "training_performed": false,
+  "model": {
+    "name": "Qwen/Qwen3-4B-GGUF",
+    "quantization": "Q4_K_M",
+    "model_bytes": 2497280256,
+    "sha256": "7485fe6f11af29433bc51cab58009521f205840f5b4ae3a32fa7f92e8534fdf5",
+    "runtime": "llama.cpp-b9987-cuda-12.4"
+  },
+  "test": {
+    "split": "test",
+    "seed": 13,
+    "samples": 500,
+    "samples_per_class": 100,
+    "requests": 1500,
+    "valid_requests": 1500,
+    "request_target_leakage_matches": 0,
+    "metrics": {
+      "hidden": {
+        "macro_f1": 0.23713417200095677,
+        "balanced_accuracy": 0.24599999999999994,
+        "accuracy": 0.246
+      },
+      "given": {
+        "macro_f1": 0.1956540011048549,
+        "balanced_accuracy": 0.21800000000000003,
+        "accuracy": 0.218
+      },
+      "shuffled": {
+        "macro_f1": 0.17934004220127683,
+        "balanced_accuracy": 0.20800000000000002,
+        "accuracy": 0.208
+      },
+      "given_minus_hidden_macro_f1": -0.04148017089610187,
+      "given_minus_shuffled_macro_f1": 0.01631395890357807
+    },
+    "paired_given_vs_hidden": {
+      "prediction_changes": 113,
+      "fixes": 25,
+      "breaks": 39,
+      "mcnemar_exact_p_accuracy": 0.10342187831608089
+    },
+    "runtime": {
+      "wall_seconds": 338.23,
+      "mean_latency_ms": 223.5,
+      "median_latency_ms": 166.0,
+      "p95_latency_ms": 451.4,
+      "p99_latency_ms": 523.6,
+      "observed_gpu_memory_mib": 3744
+    }
+  },
+  "conclusion": "Correct profile prompting changed predictions but did not improve the text-only model over hidden profile on the formal test sample; the largest degradation was on NA."
+}

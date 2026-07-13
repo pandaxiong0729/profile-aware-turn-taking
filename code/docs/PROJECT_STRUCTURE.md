@@ -14,7 +14,9 @@ turn-taking/
 │   │   ├── smoke_profile.json    # 最小合成 profile
 │   │   └── data_preview/         # GitHub 可直接查看的数据/输出示例
 │   ├── reports/                  # 数据统计、问题清单和验证报告
+│   │   └── PROMPT_BASELINE_QWEN3_4B_REPORT.md # 本地4B模型正式prompt实验
 │   ├── scripts/                  # 下载与数据预览工具
+│   │   └── run_prompt_baseline.py # 现成大模型零训练 prompt 基线
 │   ├── src/profile_turntaking/   # 数据、模型、训练和评测实现
 │   └── tests/                    # 自动测试
 ├── data/                         # 本地数据，Git 忽略
