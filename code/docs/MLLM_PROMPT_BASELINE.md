@@ -61,14 +61,18 @@ $run = "artifacts\mllm-prompt-baseline\qwen2.5-omni-3b\onset-500-review-required
 
 & $python code\scripts\review_labels.py build `
   --run-dir $run `
-  --source-manifest data\processed\sbcsae_mvp_v2\event_onset_manifest.jsonl
+  --source-manifest data\processed\sbcsae_mvp_v2\event_onset_manifest.jsonl `
+  --catalog-dir data\processed\sbcsae_catalog_v2
 ```
 
 Open `$run\review.html`. The review clip intentionally contains audio before and
 after `t`, because an annotator must hear the target evidence. It is marked
 annotation-only and is never referenced by `requests.jsonl`. Label with keys
-`1–5`, use `U` for uncertain cases, and export `reviewed_labels.json`. Apply the
-complete review:
+`1–5`, use `U` for uncertain cases, and export `reviewed_labels.json`. The page
+also shows time-relative transcript units around the boundary and puts samples
+with non-lexical/environment target evidence first. These fields live only in
+`review_items.json` and `review.html`; they never enter a model request. Apply
+the complete review:
 
 ```powershell
 & $python code\scripts\review_labels.py apply `

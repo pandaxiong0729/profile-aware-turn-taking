@@ -12,6 +12,7 @@ def main() -> None:
     build = subparsers.add_parser("build")
     build.add_argument("--run-dir", required=True)
     build.add_argument("--source-manifest")
+    build.add_argument("--catalog-dir")
     apply = subparsers.add_parser("apply")
     apply.add_argument("--source-manifest", required=True)
     apply.add_argument("--review-json", required=True)
@@ -19,7 +20,11 @@ def main() -> None:
     apply.add_argument("--reviewer-id", required=True)
     args = parser.parse_args()
     if args.command == "build":
-        report = build_review_page(args.run_dir, source_manifest=args.source_manifest)
+        report = build_review_page(
+            args.run_dir,
+            source_manifest=args.source_manifest,
+            catalog_dir=args.catalog_dir,
+        )
     else:
         report = apply_reviewed_labels(
             args.source_manifest,

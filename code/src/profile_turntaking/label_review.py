@@ -6,6 +6,7 @@ import html
 import json
 import re
 import wave
+from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
@@ -30,10 +31,74 @@ def _write_pcm16_wav(path: Path, samples: np.ndarray, sample_rate: int = 16_000)
         wav.writeframes(pcm.tobytes())
 
 
+def _load_catalog_review_context(
+    catalog_dir: str | Path,
+) -> tuple[dict[str, list[dict[str, Any]]], dict[str, dict[str, str]]]:
+    """Load rows and reproduce the manifest's first-seen A/B mapping."""
+
+    catalog = Path(catalog_dir)
+    rows_by_conversation: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in read_jsonl(catalog / "utterances.jsonl"):
+        rows_by_conversation[str(row["conversation_id"])].append(row)
+    speaker_maps: dict[str, dict[str, str]] = {}
+    for conversation_id, rows in rows_by_conversation.items():
+        first_seen: list[str] = []
+        for row in rows:
+            speaker = str(row.get("speaker"))
+            if row.get("is_person") and speaker not in first_seen:
+                first_seen.append(speaker)
+        speaker_maps[conversation_id] = {
+            speaker: f"speaker_{chr(ord('A') + index)}"
+            for index, speaker in enumerate(first_seen[:2])
+        }
+    return dict(rows_by_conversation), speaker_maps
+
+
+def _annotation_evidence(
+    *,
+    rows: list[dict[str, Any]],
+    speaker_map: dict[str, str],
+    prediction_time_s: float,
+    review_start_s: float,
+    review_end_s: float,
+) -> tuple[str, list[str]]:
+    """Format boundary evidence kept strictly outside all model requests."""
+
+    evidence: list[str] = []
+    risk_flags: set[str] = set()
+    horizon_end = prediction_time_s + 0.04
+    for row in rows:
+        start = float(row["start_s"])
+        end = float(row["end_s"])
+        if start >= review_end_s or end <= review_start_s:
+            continue
+        is_person = bool(row.get("is_person"))
+        speaker = speaker_map.get(str(row.get("speaker")), "environment")
+        position = (
+            "before t"
+            if end <= prediction_time_s
+            else "after t"
+            if start >= prediction_time_s
+            else "crosses t"
+        )
+        text = str(row.get("text", "")).strip() or "<non-lexical/empty>"
+        evidence.append(
+            f"[{speaker} {start - prediction_time_s:+.3f}→"
+            f"{end - prediction_time_s:+.3f}s | {position}] {text}"
+        )
+        overlaps_target = start < horizon_end and end > prediction_time_s
+        if overlaps_target and is_person and not str(row.get("clean_text", "")).strip():
+            risk_flags.add("target_has_nonlexical_human_unit")
+        if overlaps_target and not is_person:
+            risk_flags.add("target_has_environment_unit")
+    return "\n".join(evidence) or "<no catalog units in review window>", sorted(risk_flags)
+
+
 def build_review_page(
     run_dir: str | Path,
     *,
     source_manifest: str | Path | None = None,
+    catalog_dir: str | Path | None = None,
     seconds_before_t: float = 3.0,
     seconds_after_t: float = 2.0,
 ) -> dict[str, Any]:
@@ -58,6 +123,13 @@ def build_review_page(
         if source_manifest is not None
         else {}
     )
+    if catalog_dir is not None and source_manifest is None:
+        raise ValueError("catalog_dir requires source_manifest")
+    catalog_rows, speaker_maps = (
+        _load_catalog_review_context(catalog_dir)
+        if catalog_dir is not None
+        else ({}, {})
+    )
     items = []
     for sample_id in sorted(target_by_sample):
         request = hidden_by_sample[sample_id]
@@ -66,6 +138,8 @@ def build_review_page(
             request.get("audio_duration_s", request.get("prediction_time_s", 0.0))
         )
         contains_future = False
+        annotation_evidence = "<catalog evidence not requested>"
+        risk_flags: list[str] = []
         if source_manifest is not None:
             source_row = source_by_sample.get(sample_id)
             if source_row is None:
@@ -84,6 +158,23 @@ def build_review_page(
             )
             review_boundary_s = prediction_time - review_start
             contains_future = True
+            if catalog_dir is not None:
+                annotation_evidence, risk_flags = _annotation_evidence(
+                    rows=catalog_rows.get(str(source_row["conversation_id"]), []),
+                    speaker_map=speaker_maps.get(str(source_row["conversation_id"]), {}),
+                    prediction_time_s=prediction_time,
+                    review_start_s=review_start,
+                    review_end_s=review_end,
+                )
+            if source_row.get("event_representative_policy") != "onset":
+                risk_flags.append("representative_is_not_event_onset")
+            if (
+                str(source_row.get("label")) in {"BC", "I"}
+                and float(source_row.get("weak_event_start_s", prediction_time))
+                < prediction_time - 1e-8
+            ):
+                risk_flags.append("BC_or_I_already_active_before_t")
+            risk_flags = sorted(set(risk_flags))
         items.append(
             {
                 "sample_id": sample_id,
@@ -93,9 +184,19 @@ def build_review_page(
                 "audio_path": review_audio_path,
                 "prediction_boundary_in_review_audio_s": round(review_boundary_s, 3),
                 "annotation_only_future_audio": contains_future,
+                "annotation_only_boundary_transcript": annotation_evidence,
+                "risk_flags": risk_flags,
+                "risk_score": len(risk_flags),
                 "transcript_prefix": request.get("transcript_prefix", ""),
             }
         )
+    items.sort(
+        key=lambda item: (
+            -int(item["risk_score"]),
+            str(item["conversation_id"]),
+            float(item["prediction_time_s"]),
+        )
+    )
     page = _review_html(items)
     (root / "review.html").write_text(page, encoding="utf-8")
     write_json(root / "review_items.json", items)
@@ -104,6 +205,10 @@ def build_review_page(
         "labels": {label: sum(row["weak_label"] == label for row in items) for label in LABELS},
         "review_page": str((root / "review.html").resolve()),
         "annotation_only_future_audio": source_manifest is not None,
+        "annotation_only_boundary_transcript": catalog_dir is not None,
+        "risk_flags": dict(
+            Counter(flag for item in items for flag in item.get("risk_flags", []))
+        ),
         "instructions": "Open review.html, label every item, then export reviewed_labels.json.",
     }
 
@@ -189,7 +294,9 @@ pre{{white-space:pre-wrap;max-height:260px;overflow:auto;background:#f3f3f3;padd
 <button onclick="playBoundary()">播放边界前后 0.8 秒</button>
 <div>{buttons}<button onclick="mark('UNSURE')">U: 不确定</button></div>
 <button onclick="toggleWeak()">显示/隐藏弱标签</button><b id="weak"></b>
+<button onclick="nextRisk()">下一个高风险未标</button>
 <h3>截止 t 已完成的转写单元</h3><pre id="transcript"></pre>
+<h3 style="color:#a00">标注专用：边界前后转写证据（绝不进入模型）</h3><pre id="evidence"></pre>
 <label>备注</label><textarea id="note" oninput="saveNote()"></textarea>
 <div><button onclick="move(-1)">上一条</button><button onclick="move(1)">下一条</button>
 <button onclick="nextPending()">下一条未标</button><button onclick="exportReviews()">导出 JSON</button></div></div>
@@ -197,14 +304,15 @@ pre{{white-space:pre-wrap;max-height:260px;overflow:auto;background:#f3f3f3;padd
 const items={data}; const key='sbcsae-review-v2'; let state=JSON.parse(localStorage.getItem(key)||'{{}}'); let i=0;
 function persist(){{localStorage.setItem(key,JSON.stringify(state))}}
 function render(){{let x=items[i],r=state[x.sample_id]||{{}}; progress.textContent=`${{i+1}}/${{items.length}}；已完成 ${{Object.values(state).filter(v=>v.human_label&&v.human_label!='UNSURE').length}}`;
-id.textContent=x.sample_id; meta.textContent=`${{x.conversation_id}} | 原录音 t=${{x.prediction_time_s}} s | 复核音频中的边界=${{x.prediction_boundary_in_review_audio_s}} s | 当前选择=${{r.human_label||'未标'}}`;
+id.textContent=x.sample_id; meta.textContent=`${{x.conversation_id}} | 原录音 t=${{x.prediction_time_s}} s | 复核音频中的边界=${{x.prediction_boundary_in_review_audio_s}} s | 风险=${{x.risk_flags.length?x.risk_flags.join(', '):'无自动风险标记'}} | 当前选择=${{r.human_label||'未标'}}`;
 audio.src=x.audio_path; audio.onloadedmetadata=()=>{{audio.currentTime=Math.max(0,x.prediction_boundary_in_review_audio_s-1.5)}};
-transcript.textContent=x.transcript_prefix; weak.textContent='弱标签：'+x.weak_label; note.value=r.note||'';}}
+transcript.textContent=x.transcript_prefix; evidence.textContent=x.annotation_only_boundary_transcript; weak.textContent='弱标签：'+x.weak_label; note.value=r.note||'';}}
 function playBoundary(){{let x=items[i],end=x.prediction_boundary_in_review_audio_s+0.4;audio.currentTime=Math.max(0,x.prediction_boundary_in_review_audio_s-0.4);audio.play();let timer=setInterval(()=>{{if(audio.currentTime>=end||audio.paused){{audio.pause();clearInterval(timer)}}}},20)}}
 function mark(label){{let x=items[i]; state[x.sample_id]={{...(state[x.sample_id]||{{}}),sample_id:x.sample_id,human_label:label,note:note.value}};persist();render();if(label!='UNSURE')move(1)}}
 function saveNote(){{let x=items[i];state[x.sample_id]={{...(state[x.sample_id]||{{}}),sample_id:x.sample_id,note:note.value}};persist()}}
 function move(d){{i=Math.max(0,Math.min(items.length-1,i+d));render()}}
 function nextPending(){{let n=items.findIndex((x,j)=>j>i&&(!state[x.sample_id]||!state[x.sample_id].human_label||state[x.sample_id].human_label=='UNSURE'));i=n<0?i:n;render()}}
+function nextRisk(){{let n=items.findIndex((x,j)=>j>i&&x.risk_score>0&&(!state[x.sample_id]||!state[x.sample_id].human_label||state[x.sample_id].human_label=='UNSURE'));if(n<0)n=items.findIndex(x=>x.risk_score>0&&(!state[x.sample_id]||!state[x.sample_id].human_label||state[x.sample_id].human_label=='UNSURE'));i=n<0?i:n;render()}}
 function toggleWeak(){{weak.style.display=weak.style.display=='none'?'inline':'none'}}
 function exportReviews(){{let reviews=items.map(x=>state[x.sample_id]||{{sample_id:x.sample_id,human_label:'',note:''}});let blob=new Blob([JSON.stringify({{schema_version:'1.0',reviews}},null,2)],{{type:'application/json'}});let a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='reviewed_labels.json';a.click()}}
 document.addEventListener('keydown',e=>{{if(document.activeElement===note)return;let labels=['C','BC','T','I','NA'];if(e.key>='1'&&e.key<='5')mark(labels[+e.key-1]);if(e.key.toLowerCase()=='u')mark('UNSURE')}});render();

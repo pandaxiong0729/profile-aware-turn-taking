@@ -183,7 +183,9 @@ Prompt 中没有目标标签示例、未来文本或 annotation evidence。模�
 - 当前转写不是 streaming ASR。
 
 复核页面播放的是 `[t-3s,t+2s]` annotation-only 音频，并明确显示边界；其中
-`t` 后音频只用于人工确定 gold，不会写入 `requests.jsonl`。
+`t` 后音频只用于人工确定 gold，不会写入 `requests.jsonl`。页面同时显示边界
+附近、以 `t` 为零点的 annotation-only 转写，并把非词汇人声和环境单元等
+高风险条目排在前面；这些字段只存在于 `review_items.json/review.html`。
 
 ## 9. 本轮实际测评什么
 
