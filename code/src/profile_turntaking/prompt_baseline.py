@@ -15,6 +15,8 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
+import numpy as np
+
 from .constants import LABELS, LABEL_TO_ID, UNKNOWN_PROFILE
 from .metrics import classification_metrics, write_metrics_csv
 from .utils import read_jsonl, write_json, write_jsonl
@@ -124,7 +126,7 @@ def select_prompt_rows(
     for label in LABELS:
         candidates = sorted(by_label[label], key=lambda item: str(item["sample_id"]))
         rng.shuffle(candidates)
-        selected.extend(candidates[:max_per_class])
+        selected.extend(candidates if max_per_class <= 0 else candidates[:max_per_class])
     return sorted(selected, key=lambda item: str(item["sample_id"]))
 
 
@@ -379,6 +381,77 @@ def _paired_change_summary(rows: Sequence[dict[str, Any]]) -> dict[str, int]:
     return summary
 
 
+def _session_bootstrap_summary(
+    rows: Sequence[dict[str, Any]],
+    reports: dict[str, dict[str, Any]],
+    *,
+    resamples: int = 2000,
+    seed: int = 13,
+) -> dict[str, Any]:
+    """Cluster-bootstrap primary metrics by whole conversation/session."""
+
+    by_conversation: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        by_conversation[str(row["conversation_id"])].append(row)
+    conversation_ids = sorted(by_conversation)
+    rng = random.Random(seed)
+    draws: dict[str, list[float]] = defaultdict(list)
+    for _ in range(resamples):
+        sampled_rows: list[dict[str, Any]] = []
+        for _ in conversation_ids:
+            sampled_rows.extend(by_conversation[rng.choice(conversation_ids)])
+        targets = [LABEL_TO_ID[row["target"]] for row in sampled_rows]
+        sampled_reports = {}
+        for mode in PROFILE_MODES:
+            predictions = [
+                LABEL_TO_ID[row[f"{mode}_prediction"]] for row in sampled_rows
+            ]
+            sampled_reports[mode] = classification_metrics(targets, predictions)
+            draws[f"{mode}_macro_f1"].append(sampled_reports[mode]["macro_f1"])
+            draws[f"{mode}_balanced_accuracy"].append(
+                sampled_reports[mode]["balanced_accuracy"]
+            )
+        draws["given_minus_hidden_macro_f1"].append(
+            sampled_reports["given"]["macro_f1"]
+            - sampled_reports["hidden"]["macro_f1"]
+        )
+        draws["given_minus_shuffled_macro_f1"].append(
+            sampled_reports["given"]["macro_f1"]
+            - sampled_reports["shuffled"]["macro_f1"]
+        )
+    point_estimates = {
+        **{
+            f"{mode}_macro_f1": reports[mode]["macro_f1"]
+            for mode in PROFILE_MODES
+        },
+        **{
+            f"{mode}_balanced_accuracy": reports[mode]["balanced_accuracy"]
+            for mode in PROFILE_MODES
+        },
+        "given_minus_hidden_macro_f1": (
+            reports["given"]["macro_f1"] - reports["hidden"]["macro_f1"]
+        ),
+        "given_minus_shuffled_macro_f1": (
+            reports["given"]["macro_f1"] - reports["shuffled"]["macro_f1"]
+        ),
+    }
+    intervals = {}
+    for metric, values in draws.items():
+        array = np.asarray(values, dtype=np.float64)
+        intervals[metric] = {
+            "point": float(point_estimates[metric]),
+            "lower_2_5": float(np.percentile(array, 2.5)),
+            "upper_97_5": float(np.percentile(array, 97.5)),
+        }
+    return {
+        "cluster_unit": "conversation_id",
+        "clusters": len(conversation_ids),
+        "resamples": resamples,
+        "seed": seed,
+        "intervals": intervals,
+    }
+
+
 def score_prompt_run(run_dir: str | Path) -> dict[str, Any]:
     """Score the intersection of samples valid under all three profile conditions."""
 
@@ -422,6 +495,8 @@ def score_prompt_run(run_dir: str | Path) -> dict[str, Any]:
     write_predictions_csv(root / "predictions.csv", paired_rows)
     paired_changes = _paired_change_summary(paired_rows)
     write_json(root / "paired_changes.json", paired_changes)
+    bootstrap = _session_bootstrap_summary(paired_rows, reports)
+    write_json(root / "bootstrap_95ci.json", bootstrap)
     validity = {
         "gold_requests": len(gold),
         "received_responses": len(responses),
@@ -432,6 +507,7 @@ def score_prompt_run(run_dir: str | Path) -> dict[str, Any]:
     return {
         "metrics": reports,
         "paired_changes": paired_changes,
+        "bootstrap_95ci": bootstrap,
         "validity": validity,
     }
 

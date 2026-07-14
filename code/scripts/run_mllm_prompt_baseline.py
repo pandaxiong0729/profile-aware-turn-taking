@@ -11,6 +11,7 @@ from profile_turntaking.mllm_prompt_baseline import (
     audit_mllm_prompt_run,
     prepare_mllm_prompt_run,
     prepare_silenced_audio_control,
+    require_reviewed_labels,
     run_mllm_prompt_requests,
     run_mllm_server_requests,
     score_silenced_audio_control,
@@ -49,6 +50,7 @@ def _audit(args: argparse.Namespace) -> None:
 def _run(args: argparse.Namespace) -> None:
     root = Path(args.run_dir)
     audit_mllm_prompt_run(root)
+    require_reviewed_labels(root, allow_weak_labels=args.allow_weak_labels)
     _print(
         run_mllm_prompt_requests(
             root / "requests.jsonl",
@@ -68,6 +70,7 @@ def _run(args: argparse.Namespace) -> None:
 def _run_server(args: argparse.Namespace) -> None:
     root = Path(args.run_dir)
     audit_mllm_prompt_run(root)
+    require_reviewed_labels(root, allow_weak_labels=args.allow_weak_labels)
     _print(
         run_mllm_server_requests(
             root / "requests.jsonl",
@@ -83,6 +86,7 @@ def _run_server(args: argparse.Namespace) -> None:
 
 
 def _score(args: argparse.Namespace) -> None:
+    require_reviewed_labels(args.run_dir, allow_weak_labels=args.allow_weak_labels)
     _print(score_prompt_run(args.run_dir))
 
 
@@ -154,6 +158,11 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--context-size", type=int, default=4096)
     run.add_argument("--gpu-layers", default="all")
     run.add_argument("--limit", type=int)
+    run.add_argument(
+        "--allow-weak-labels",
+        action="store_true",
+        help="diagnostic only: bypass the reviewed-label gate",
+    )
     run.set_defaults(func=_run)
 
     run_server = commands.add_parser(
@@ -168,10 +177,20 @@ def build_parser() -> argparse.ArgumentParser:
     run_server.add_argument("--retries", type=int, default=2)
     run_server.add_argument("--seed", type=int, default=13)
     run_server.add_argument("--limit", type=int)
+    run_server.add_argument(
+        "--allow-weak-labels",
+        action="store_true",
+        help="diagnostic only: bypass the reviewed-label gate",
+    )
     run_server.set_defaults(func=_run_server)
 
     score = commands.add_parser("score", help="score paired valid predictions")
     score.add_argument("--run-dir", required=True)
+    score.add_argument(
+        "--allow-weak-labels",
+        action="store_true",
+        help="diagnostic only: bypass the reviewed-label gate",
+    )
     score.set_defaults(func=_score)
 
     prepare_control = commands.add_parser(

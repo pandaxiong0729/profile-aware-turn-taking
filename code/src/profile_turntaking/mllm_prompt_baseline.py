@@ -54,6 +54,24 @@ OUTPUT_SCHEMA = {
 }
 
 
+def require_reviewed_labels(
+    run_dir: str | Path, *, allow_weak_labels: bool = False
+) -> dict[str, Any]:
+    """Block formal inference/scoring until every selected target was reviewed."""
+
+    config_path = Path(run_dir) / "run_config.json"
+    if not config_path.is_file():
+        raise ValueError(f"Missing run configuration: {config_path}")
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    quality = config.get("label_quality", {})
+    if not quality.get("formal_claim_allowed", False) and not allow_weak_labels:
+        raise ValueError(
+            "This run contains unreviewed weak labels. Complete label review and "
+            "regenerate the run, or pass --allow-weak-labels for a diagnostic-only run."
+        )
+    return quality
+
+
 def _causal_transcript(row: dict[str, Any], max_transcript_chars: int) -> str:
     transcript = str(row.get("transcript_prefix", "")).strip()
     if max_transcript_chars > 0 and len(transcript) > max_transcript_chars:
@@ -100,8 +118,8 @@ def build_audio_prompt(
             "Profile condition:",
             profile_to_prompt(profile),
             "",
-            'Return exactly one JSON object: {"label":"C"}.',
-            "Replace C with exactly one of C, BC, T, I, NA.",
+            'Return exactly one JSON object with the single key "label".',
+            "Its value must be exactly one of C, BC, T, I, NA.",
         ]
     )
 
@@ -306,7 +324,7 @@ def prepare_mllm_prompt_run(
     audit_mllm_prompt_run(
         destination,
         expected_samples=len(selected),
-        expected_per_class=max_per_class,
+        expected_per_class=max_per_class if max_per_class > 0 else None,
     )
     return summary
 
@@ -477,7 +495,7 @@ def audit_mllm_prompt_run(
         "profile_modes": list(PROFILE_MODES),
         "input_contract": {
             "audio": "mono [t-context,t]",
-            "transcript": "causal partial transcript available by t",
+            "transcript": "completed causal transcript units available by t",
             "profile": "hidden/given/shuffled fixed-template natural language",
             "output": "one label in C/BC/T/I/NA for [t,t+40ms]",
         },
@@ -1003,6 +1021,7 @@ __all__ = [
     "parse_mllm_cli_label",
     "prepare_silenced_audio_control",
     "prepare_mllm_prompt_run",
+    "require_reviewed_labels",
     "run_mllm_prompt_requests",
     "run_mllm_server_requests",
     "score_silenced_audio_control",

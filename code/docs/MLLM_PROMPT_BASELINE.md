@@ -34,7 +34,7 @@ Within one sample, audio SHA-256, transcript SHA-256, prediction boundary, task 
 
 ## Prepare the 500-event review set
 
-Run from the repository root. Select one representative frame from each distinct
+Run from the repository root. Select the onset frame from each distinct
 weak event across all 16 core conversations. This is allowed here because the
 existing MLLM is zero-shot and was not trained on SBCSAE. These 500 rows remain
 candidate weak labels until review; `run_config.json` must report
@@ -43,10 +43,10 @@ candidate weak labels until review; `run_config.json` must report
 ```powershell
 $python = ".\.venv\Scripts\python.exe"
 $env:PYTHONPATH = "code/src"
-$run = "artifacts\mllm-prompt-baseline\qwen2.5-omni-3b\v2-event-500-review-required"
+$run = "artifacts\mllm-prompt-baseline\qwen2.5-omni-3b\onset-500-review-required"
 
 & $python code\scripts\run_mllm_prompt_baseline.py prepare `
-  --manifest data\processed\sbcsae_mvp_v2\event_manifest.jsonl `
+  --manifest data\processed\sbcsae_mvp_v2\event_onset_manifest.jsonl `
   --output-dir $run `
   --split all `
   --max-per-class 100 `
@@ -59,16 +59,20 @@ $run = "artifacts\mllm-prompt-baseline\qwen2.5-omni-3b\v2-event-500-review-requi
   --expected-samples 500 `
   --expected-per-class 100
 
-& $python code\scripts\review_labels.py build --run-dir $run
+& $python code\scripts\review_labels.py build `
+  --run-dir $run `
+  --source-manifest data\processed\sbcsae_mvp_v2\event_onset_manifest.jsonl
 ```
 
-Open `$run\review.html`. It plays the same causal audio and shows only completed
-transcript units. Label with keys `1–5`, use `U` for uncertain cases, and export
-`reviewed_labels.json`. Apply the complete review:
+Open `$run\review.html`. The review clip intentionally contains audio before and
+after `t`, because an annotator must hear the target evidence. It is marked
+annotation-only and is never referenced by `requests.jsonl`. Label with keys
+`1–5`, use `U` for uncertain cases, and export `reviewed_labels.json`. Apply the
+complete review:
 
 ```powershell
 & $python code\scripts\review_labels.py apply `
-  --source-manifest data\processed\sbcsae_mvp_v2\event_manifest.jsonl `
+  --source-manifest data\processed\sbcsae_mvp_v2\event_onset_manifest.jsonl `
   --review-json $run\reviewed_labels.json `
   --output-manifest data\processed\sbcsae_mvp_v2\reviewed_500.jsonl `
   --reviewer-id annotator-1
@@ -77,6 +81,21 @@ transcript units. Label with keys `1–5`, use `U` for uncertain cases, and expo
 Regenerate the run from `reviewed_500.jsonl`; its `run_config.json` must show 500
 human-reviewed samples. Do not start the model before this gate passes. Then start
 one persistent llama.cpp server:
+
+```powershell
+$run = "artifacts\mllm-prompt-baseline\qwen2.5-omni-3b\onset-500-reviewed"
+& $python code\scripts\run_mllm_prompt_baseline.py prepare `
+  --manifest data\processed\sbcsae_mvp_v2\reviewed_500.jsonl `
+  --output-dir $run `
+  --split all `
+  --max-per-class 0 `
+  --context-seconds 30 `
+  --seed 13
+```
+
+`--max-per-class 0` retains all 500 reviewed sample IDs even if human corrections
+make the final class counts unequal. Rebalancing after review would silently change
+the predeclared evaluation set.
 
 ```powershell
 & models\llama.cpp-b9987\llama-server.exe `
@@ -116,7 +135,13 @@ The runner appends one response at a time. Re-running it resumes from `responses
 - `predictions.csv/json`: paired sample-level predictions;
 - `profile_comparison.csv`: compact three-condition metric table;
 - `paired_changes.json`: given fixes/breaks relative to hidden;
+- `bootstrap_95ci.json`: 2,000-resample conversation-level bootstrap 95% intervals;
 - `diagnostics.json`: output distributions, paired changes, latency, and collapse gate.
+
+Because the schema returns one hard class rather than five probabilities, this
+pilot does not report ROC-AUC, Brier score, or ECE. It also samples event onsets
+instead of decoding a complete 40 ms timeline, so ±200 ms event-level F1 belongs
+to the later streaming adapter experiment, not this prompt pilot.
 
 The earlier measured result in
 `code/reports/MLLM_PROMPT_QWEN2_5_OMNI_3B_REPORT.md` is explicitly invalidated.

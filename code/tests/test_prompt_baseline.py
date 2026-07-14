@@ -131,5 +131,8 @@ def test_score_uses_only_samples_valid_in_all_three_modes(tmp_path: Path) -> Non
     assert report["paired_changes"]["given_fixes_hidden_error"] == 1
     assert report["metrics"]["given"]["accuracy"] == 1.0
     assert report["metrics"]["hidden"]["accuracy"] == 0.5
+    assert report["bootstrap_95ci"]["cluster_unit"] == "conversation_id"
+    assert report["bootstrap_95ci"]["clusters"] == 1
     assert (run_dir / "profile_comparison.csv").is_file()
     assert (run_dir / "predictions.csv").is_file()
+    assert (run_dir / "bootstrap_95ci.json").is_file()

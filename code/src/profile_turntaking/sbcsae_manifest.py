@@ -264,10 +264,14 @@ def _sample_row(
 
 
 def _event_representative_time(
-    event: dict[str, Any], *, frame_stride_ms: int
+    event: dict[str, Any], *, frame_stride_ms: int, policy: str = "midpoint_grid"
 ) -> float:
     """Choose one observed grid frame near an event's midpoint."""
 
+    if policy == "onset":
+        return round(float(event["start_s"]), 6)
+    if policy != "midpoint_grid":
+        raise ValueError(f"Unknown event representative policy: {policy}")
     step = frame_stride_ms / 1000.0
     frame_count = max(1, int(round((event["end_s"] - event["start_s"]) / step)))
     return round(event["start_s"] + ((frame_count - 1) // 2) * step, 6)
@@ -419,6 +423,7 @@ def prepare_sbcsae_manifests(
     write_jsonl(destination / "manifest.jsonl", manifest_rows)
     write_jsonl(destination / "weak_events.jsonl", weak_events)
     event_manifest_rows: list[dict[str, Any]] = []
+    event_onset_manifest_rows: list[dict[str, Any]] = []
     for event_index, event in enumerate(weak_events):
         conversation = conversation_by_id[event["conversation_id"]]
         rows, profile, provenance = prepared[event["conversation_id"]]
@@ -443,10 +448,39 @@ def prepare_sbcsae_manifests(
                 "weak_event_start_s": event["start_s"],
                 "weak_event_end_s": event["end_s"],
                 "event_representative": True,
+                "event_representative_policy": "midpoint_grid",
             }
         )
         event_manifest_rows.append(row)
+        onset_candidate = Candidate(
+            event["conversation_id"],
+            event["split"],
+            _event_representative_time(
+                event, frame_stride_ms=frame_stride_ms, policy="onset"
+            ),
+            event["label"],
+        )
+        onset_row = _sample_row(
+            onset_candidate,
+            conversation=conversation,
+            utterances=rows,
+            profile=profile,
+            provenance=provenance,
+            context_seconds=context_seconds,
+            horizon_ms=horizon_ms,
+        )
+        onset_row.update(
+            {
+                "weak_event_id": f"{event['conversation_id']}-event-{event_index:06d}",
+                "weak_event_start_s": event["start_s"],
+                "weak_event_end_s": event["end_s"],
+                "event_representative": True,
+                "event_representative_policy": "onset",
+            }
+        )
+        event_onset_manifest_rows.append(onset_row)
     write_jsonl(destination / "event_manifest.jsonl", event_manifest_rows)
+    write_jsonl(destination / "event_onset_manifest.jsonl", event_onset_manifest_rows)
     write_json(
         destination / "split_map.json",
         {
@@ -507,6 +541,9 @@ def prepare_sbcsae_manifests(
             "manifest": str((destination / "manifest.jsonl").resolve()),
             "weak_events": str((destination / "weak_events.jsonl").resolve()),
             "event_manifest": str((destination / "event_manifest.jsonl").resolve()),
+            "event_onset_manifest": str(
+                (destination / "event_onset_manifest.jsonl").resolve()
+            ),
             "split_map": str((destination / "split_map.json").resolve()),
         },
     }

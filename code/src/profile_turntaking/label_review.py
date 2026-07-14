@@ -4,14 +4,39 @@ from __future__ import annotations
 
 import html
 import json
+import re
+import wave
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
+from .audio import read_wav_window
 from .constants import LABELS
 from .utils import read_jsonl, write_json, write_jsonl
 
 
-def build_review_page(run_dir: str | Path) -> dict[str, Any]:
+_SAFE_FILE_PATTERN = re.compile(r"[^A-Za-z0-9_.-]+")
+
+
+def _write_pcm16_wav(path: Path, samples: np.ndarray, sample_rate: int = 16_000) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    clipped = np.clip(np.asarray(samples, dtype=np.float32), -1.0, 1.0)
+    pcm = np.round(clipped * 32767.0).astype("<i2")
+    with wave.open(str(path), "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(sample_rate)
+        wav.writeframes(pcm.tobytes())
+
+
+def build_review_page(
+    run_dir: str | Path,
+    *,
+    source_manifest: str | Path | None = None,
+    seconds_before_t: float = 3.0,
+    seconds_after_t: float = 2.0,
+) -> dict[str, Any]:
     """Create a local HTML reviewer for the unique samples in an MLLM run."""
 
     root = Path(run_dir)
@@ -28,16 +53,46 @@ def build_review_page(run_dir: str | Path) -> dict[str, Any]:
     missing = sorted(set(target_by_sample) - set(hidden_by_sample))
     if missing:
         raise ValueError(f"Missing hidden requests for {len(missing)} review samples")
+    source_by_sample = (
+        {str(row["sample_id"]): row for row in read_jsonl(source_manifest)}
+        if source_manifest is not None
+        else {}
+    )
     items = []
     for sample_id in sorted(target_by_sample):
         request = hidden_by_sample[sample_id]
+        review_audio_path = str(request["audio_path"]).replace("\\", "/")
+        review_boundary_s = float(
+            request.get("audio_duration_s", request.get("prediction_time_s", 0.0))
+        )
+        contains_future = False
+        if source_manifest is not None:
+            source_row = source_by_sample.get(sample_id)
+            if source_row is None:
+                raise ValueError(f"Review sample {sample_id} is absent from source manifest")
+            prediction_time = float(source_row["prediction_time_s"])
+            review_start = max(0.0, prediction_time - seconds_before_t)
+            review_end = prediction_time + seconds_after_t
+            review_audio = read_wav_window(
+                source_row["audio_path"], review_start, review_end, target_rate=16_000
+            )
+            safe_sample_id = _SAFE_FILE_PATTERN.sub("_", sample_id)
+            review_clip = root / "review_clips" / f"{safe_sample_id}.wav"
+            _write_pcm16_wav(review_clip, review_audio)
+            review_audio_path = str(Path("review_clips") / review_clip.name).replace(
+                "\\", "/"
+            )
+            review_boundary_s = prediction_time - review_start
+            contains_future = True
         items.append(
             {
                 "sample_id": sample_id,
                 "conversation_id": request["conversation_id"],
                 "prediction_time_s": request["prediction_time_s"],
                 "weak_label": target_by_sample[sample_id],
-                "audio_path": str(request["audio_path"]).replace("\\", "/"),
+                "audio_path": review_audio_path,
+                "prediction_boundary_in_review_audio_s": round(review_boundary_s, 3),
+                "annotation_only_future_audio": contains_future,
                 "transcript_prefix": request.get("transcript_prefix", ""),
             }
         )
@@ -48,6 +103,7 @@ def build_review_page(run_dir: str | Path) -> dict[str, Any]:
         "review_samples": len(items),
         "labels": {label: sum(row["weak_label"] == label for row in items) for label in LABELS},
         "review_page": str((root / "review.html").resolve()),
+        "annotation_only_future_audio": source_manifest is not None,
         "instructions": "Open review.html, label every item, then export reviewed_labels.json.",
     }
 
@@ -126,9 +182,11 @@ button{{margin:5px;padding:10px 16px}} audio{{width:100%;margin:12px 0}}
 pre{{white-space:pre-wrap;max-height:260px;overflow:auto;background:#f3f3f3;padding:12px}}
 #weak{{display:none}} textarea{{width:100%;height:70px}} .meta{{color:#555}}
 </style></head><body><h1>SBCSAE 500-event label review</h1>
-<p>只根据音频和截止 t 的转写判断未来 40 ms 状态。快捷键 1–5 对应 C/BC/T/I/NA，U=不确定。</p>
+<p>快捷键 1–5 对应 C/BC/T/I/NA，U=不确定。</p>
+<p style="color:#a00"><b>标注专用音频包含 t 之后的证据，只用于确定 gold label，绝不是模型输入。</b></p>
 <div class="card"><div id="progress"></div><h2 id="id"></h2><div class="meta" id="meta"></div>
 <audio id="audio" controls preload="metadata"></audio>
+<button onclick="playBoundary()">播放边界前后 0.8 秒</button>
 <div>{buttons}<button onclick="mark('UNSURE')">U: 不确定</button></div>
 <button onclick="toggleWeak()">显示/隐藏弱标签</button><b id="weak"></b>
 <h3>截止 t 已完成的转写单元</h3><pre id="transcript"></pre>
@@ -139,9 +197,10 @@ pre{{white-space:pre-wrap;max-height:260px;overflow:auto;background:#f3f3f3;padd
 const items={data}; const key='sbcsae-review-v2'; let state=JSON.parse(localStorage.getItem(key)||'{{}}'); let i=0;
 function persist(){{localStorage.setItem(key,JSON.stringify(state))}}
 function render(){{let x=items[i],r=state[x.sample_id]||{{}}; progress.textContent=`${{i+1}}/${{items.length}}；已完成 ${{Object.values(state).filter(v=>v.human_label&&v.human_label!='UNSURE').length}}`;
-id.textContent=x.sample_id; meta.textContent=`${{x.conversation_id}} | t=${{x.prediction_time_s}} s | 当前选择=${{r.human_label||'未标'}}`;
-audio.src=x.audio_path; audio.onloadedmetadata=()=>{{audio.currentTime=Math.max(0,audio.duration-6)}};
+id.textContent=x.sample_id; meta.textContent=`${{x.conversation_id}} | 原录音 t=${{x.prediction_time_s}} s | 复核音频中的边界=${{x.prediction_boundary_in_review_audio_s}} s | 当前选择=${{r.human_label||'未标'}}`;
+audio.src=x.audio_path; audio.onloadedmetadata=()=>{{audio.currentTime=Math.max(0,x.prediction_boundary_in_review_audio_s-1.5)}};
 transcript.textContent=x.transcript_prefix; weak.textContent='弱标签：'+x.weak_label; note.value=r.note||'';}}
+function playBoundary(){{let x=items[i],end=x.prediction_boundary_in_review_audio_s+0.4;audio.currentTime=Math.max(0,x.prediction_boundary_in_review_audio_s-0.4);audio.play();let timer=setInterval(()=>{{if(audio.currentTime>=end||audio.paused){{audio.pause();clearInterval(timer)}}}},20)}}
 function mark(label){{let x=items[i]; state[x.sample_id]={{...(state[x.sample_id]||{{}}),sample_id:x.sample_id,human_label:label,note:note.value}};persist();render();if(label!='UNSURE')move(1)}}
 function saveNote(){{let x=items[i];state[x.sample_id]={{...(state[x.sample_id]||{{}}),sample_id:x.sample_id,note:note.value}};persist()}}
 function move(d){{i=Math.max(0,Math.min(items.length-1,i+d));render()}}

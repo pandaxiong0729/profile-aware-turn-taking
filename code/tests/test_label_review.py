@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import wave
 from pathlib import Path
 
 from profile_turntaking.label_review import apply_reviewed_labels, build_review_page
@@ -41,3 +42,39 @@ def test_build_and_apply_review(tmp_path: Path) -> None:
     assert applied["changed_labels"] == 1
     assert row["label"] == "BC"
     assert row["gold_label"] is True
+
+
+def test_build_review_can_include_annotation_only_future_audio(tmp_path: Path) -> None:
+    source_audio = tmp_path / "source.wav"
+    with wave.open(str(source_audio), "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(16_000)
+        wav.writeframes(b"\0\0" * 64_000)
+    run = tmp_path / "run"
+    run.mkdir()
+    write_jsonl(
+        run / "requests.jsonl",
+        [
+            {
+                "sample_id": "s1",
+                "conversation_id": "c1",
+                "prediction_time_s": 2.0,
+                "audio_duration_s": 2.0,
+                "profile_mode": "hidden",
+                "audio_path": "audio_clips/s1.wav",
+                "transcript_prefix": "causal only",
+            }
+        ],
+    )
+    write_jsonl(run / "gold.jsonl", [{"sample_id": "s1", "target": "C"}])
+    manifest = tmp_path / "manifest.jsonl"
+    write_jsonl(
+        manifest,
+        [{"sample_id": "s1", "prediction_time_s": 2.0, "audio_path": str(source_audio)}],
+    )
+    report = build_review_page(run, source_manifest=manifest)
+    item = json.loads((run / "review_items.json").read_text(encoding="utf-8"))[0]
+    assert report["annotation_only_future_audio"] is True
+    assert item["annotation_only_future_audio"] is True
+    assert (run / item["audio_path"]).is_file()

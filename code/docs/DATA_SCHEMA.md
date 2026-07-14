@@ -126,3 +126,8 @@ Speaker A 是该会话中第一个实际出现的人类，Speaker B 是另一个
 `weak_event_end_s` 和 `event_representative=true`。低成本 prompt 验证从这个
 文件抽样，避免把同一段连续 BC/I/NA 当成多条独立测试数据。自动标签完成
 人工复核前，`gold_label` 仍为 `false`。
+
+`event_onset_manifest.jsonl` 使用相同事件，但把预测边界放在事件起始
+网格点，`event_representative_policy="onset"`。低成本“预测”验证优先使用
+这份文件，使 BC/I 等目标尚未出现在模型输入音频中；中点版本只用于状态
+识别诊断。

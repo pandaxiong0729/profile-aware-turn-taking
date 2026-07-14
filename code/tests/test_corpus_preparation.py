@@ -12,6 +12,7 @@ from profile_turntaking.sbcsae_corpus import (
     infer_context,
     metadata_aliases,
     normalize_speaker_name,
+    resolve_context,
 )
 from profile_turntaking.sbcsae_manifest import (
     MonotonicWeakLabeler,
@@ -39,6 +40,20 @@ def test_metadata_normalization_and_context_rules() -> None:
     assert relationship == "professional_client"
     assert situation == "healthcare_consultation"
     assert confidence == "high"
+
+
+def test_core_context_overrides_use_reviewed_chat_comments() -> None:
+    relationship, situation, confidence, method = resolve_context(
+        "SBC029", "business meeting for an estimate"
+    )
+    assert relationship == "professional_client"
+    assert situation == "workplace_or_business"
+    assert confidence == "manual_high"
+    assert method == "manual_core_chat_comment_review_v1"
+    assert resolve_context("SBC043", "mother and daughter")[:2] == (
+        "family",
+        "family_or_home_conversation",
+    )
 
 
 def test_profile_schema_requires_both_speakers_and_context() -> None:
@@ -85,6 +100,9 @@ def test_monotonic_labeler_does_not_turn_sequential_speech_into_overlap() -> Non
 def test_event_representative_is_an_observed_grid_frame() -> None:
     event = {"start_s": 10.0, "end_s": 10.2}
     assert _event_representative_time(event, frame_stride_ms=40) == 10.08
+    assert _event_representative_time(
+        event, frame_stride_ms=40, policy="onset"
+    ) == 10.0
 
 
 def test_monotonic_labeler_matches_reference_on_random_sequences() -> None:

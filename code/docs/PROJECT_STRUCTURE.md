@@ -14,10 +14,12 @@ turn-taking/
 │   │   ├── smoke_profile.json    # 最小合成 profile
 │   │   └── data_preview/         # GitHub 可直接查看的数据/输出示例
 │   ├── reports/                  # 数据统计、问题清单和验证报告
-│   │   ├── PROMPT_BASELINE_QWEN3_4B_REPORT.md # 文本模型辅助 prompt 实验
-│   │   └── MLLM_PROMPT_QWEN2_5_OMNI_3B_REPORT.md # 三路输入、500 样本 MLLM 实验
-│   ├── scripts/                  # 下载与数据预览工具
-│   │   ├── run_prompt_baseline.py # 文本大模型零训练 prompt 基线
+│   │   ├── EXPERIMENT_PRESTART_REVIEW.md # 当前实验协议与开跑前验收结论
+│   │   ├── LABEL_AUDIT_AND_V2_REBUILD.md # 弱标签问题与 v2 重建记录
+│   │   └── MLLM_PROMPT_QWEN2_5_OMNI_3B_REPORT.md # 已作废旧运行的问题记录
+│   ├── scripts/                  # 数据准备、审计、复核与实验入口
+│   │   ├── audit_prompt_pilot_data.py # 深度检查输入、标签、profile 和 split
+│   │   ├── review_labels.py     # 生成/导入 500 条人工复核页面
 │   │   └── run_mllm_prompt_baseline.py # 音频+因果转写+profile 零训练基线
 │   ├── src/profile_turntaking/   # 数据、模型、训练和评测实现
 │   └── tests/                    # 自动测试
@@ -32,8 +34,8 @@ turn-taking/
 │   ├── pachat/
 │   │   └── official_site/        # 官方项目页的 4 个 demo
 │   └── processed/
-│       ├── sbcsae_catalog/       # 全 60 会话的规范化目录
-│       ├── sbcsae_mvp/           # 54,270 条五分类 manifest
+│       ├── sbcsae_catalog_v2/    # 修正转写清洗、说话人及关系映射后的目录
+│       ├── sbcsae_mvp_v2/        # v2 五分类帧、事件及 onset manifest
 │       ├── pachat_demo/          # 4 cases / 14 profiles / 29 turns
 │       └── audit.json            # 19 项数据审计
 └── artifacts/                    # 本地运行产物，Git 忽略
@@ -45,16 +47,17 @@ turn-taking/
     │       ├── metrics.json
     │       ├── predictions.json
     │       └── profile_comparison.csv
-    ├── mllm-prompt-baseline/     # 三路输入的 hidden/given/shuffled MLLM 实验
+    ├── mllm-prompt-baseline/     # 三路输入的 hidden/given/shuffled prompt 实验
     │   └── qwen2.5-omni-3b/
-    │       ├── audio-transcript-profile-test-100-per-class/
-    │           ├── audio_clips/  # 同一样本三条件共用的因果 WAV
-    │           ├── requests.jsonl
-    │           ├── responses.jsonl
-    │           ├── input_audit.json
-    │           ├── diagnostics.json
-    │           └── metrics.json
-    │       └── silenced-audio-control-50/ # 不进入正式评分的音频敏感性诊断
+    │       ├── onset-500-review-required/ # 当前候选集；尚未运行推理
+    │       │   ├── audio_clips/  # 只到预测时刻 t 的因果 WAV
+    │       │   ├── review_clips/ # 仅供人工标注、含 t 后信息；绝不进模型
+    │       │   ├── requests.jsonl # hidden/given/shuffled 三条件请求
+    │       │   ├── gold.jsonl     # 当前保存自动候选标签；复核前不是正式 gold
+    │       │   ├── review.html   # 500 条人工复核页面
+    │       │   ├── input_audit.json
+    │       │   └── preflight_audit.json
+    │       └── audio-transcript-profile-test-100-per-class/ # 已作废旧运行
     └── data-preview/
         ├── sbcsae/               # 一条真实 SBCSAE 输入/目标与 30 秒 WAV
         ├── pachat/               # 一条官方 demo、profile 和 WAV
@@ -63,13 +66,26 @@ turn-taking/
 
 ## 从原始数据到结果
 
+低成本 prompt 验证（本轮）与正式 adapter 训练共用 v2 数据底座，但不是同一条
+实验流水线：
+
 ```text
 WAV + TRN + CHAT + metadata
         ↓ prepare-sbcsae-corpus
-sbcsae_catalog
+sbcsae_catalog_v2
         ↓ prepare-sbcsae-manifests
-manifest.jsonl + split_map.json + weak_events.jsonl
-        ↓ train（一次）
+manifest.jsonl + event_manifest.jsonl + event_onset_manifest.jsonl + split_map.json
+
+prompt 验证：event_onset_manifest.jsonl
+        ↓ audit_prompt_pilot_data + review_labels（500 条）
+preflight_audit.json + reviewed_500.jsonl
+        ↓ 同一现成 MLLM 推理；不训练
+hidden / given / shuffled
+        ↓
+metrics.json + predictions.json + bootstrap_95ci.json
+
+正式 adapter：manifest.jsonl + speaker-connected split
+        ↓ streaming ASR/VAD 数据补齐后 train（一次）
 model.pt + model.train.json
         ↓ evaluate（同一 checkpoint、同一 test sample IDs）
 hidden / given / shuffled
@@ -86,7 +102,9 @@ metrics.json + predictions.json + profile_comparison.csv
 - profile 输入：Speaker A/B、relationship、situation；
 - 目标输出：下一个 40 ms 的 `C / BC / T / I / NA` 弱标签。
 
-`data/processed/sbcsae_mvp/manifest.jsonl` 有 54,270 行。使用 `scripts/export_data_preview.py --sample-id ...` 可以把任意一行变成容易阅读的 JSON 和可直接试听的 30 秒 WAV。
+训练用逐帧数据位于 `data/processed/sbcsae_mvp_v2/manifest.jsonl`。低成本 prompt 验证不直接从重复的逐帧行抽样，而从 `event_onset_manifest.jsonl` 选择 500 个事件起点；每类先提出 100 条候选，再人工确认标签。使用 `scripts/export_data_preview.py --sample-id ...` 可以把任意一行变成容易阅读的 JSON 和可直接试听的 WAV。
+
+`review_clips/` 是标注工具专用音频，允许包含预测点之后最多 2 秒，以便人判断事件类型；`requests.jsonl` 引用的 `audio_clips/` 严格止于预测点，两者不可混用。
 
 ## 训练后的文件
 

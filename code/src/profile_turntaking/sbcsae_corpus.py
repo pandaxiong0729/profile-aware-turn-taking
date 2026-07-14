@@ -95,6 +95,30 @@ PROFILE_OVERRIDES = {
     ("SBC046", "DARREN"): "0156",
 }
 
+# The first experiment uses these 16 core dyadic conversations.  Their CHAT
+# comments are short enough to review directly, so relationship/situation should
+# not be inferred by a broad keyword rule (for example, "meeting" incorrectly
+# turned an engineer/customer estimate into colleagues).  Values below were
+# checked against the official @Comment text bundled with SBCSAE.
+CORE_CONTEXT_OVERRIDES = {
+    "SBC005": ("romantic_partners", "casual_social_conversation"),
+    "SBC006": ("family", "casual_social_conversation"),
+    "SBC007": ("family", "casual_social_conversation"),
+    "SBC009": ("romantic_partners", "collaborative_task"),
+    "SBC010": ("colleagues", "workplace_or_business"),
+    "SBC017": ("friends_or_peers", "casual_social_conversation"),
+    "SBC024": ("romantic_partners", "collaborative_task"),
+    "SBC029": ("professional_client", "workplace_or_business"),
+    "SBC034": ("romantic_partners", "family_or_home_conversation"),
+    "SBC041": ("professional_client", "healthcare_consultation"),
+    "SBC043": ("family", "family_or_home_conversation"),
+    "SBC044": ("friends_or_peers", "casual_social_conversation"),
+    "SBC045": ("friends_or_peers", "casual_social_conversation"),
+    "SBC047": ("family", "family_or_home_conversation"),
+    "SBC058": ("family", "family_or_home_conversation"),
+    "SBC060": ("colleagues", "casual_social_conversation"),
+}
+
 
 @dataclass(frozen=True)
 class MetadataRecord:
@@ -359,6 +383,16 @@ def infer_context(context: str) -> tuple[str, str, str]:
         relationship = "unknown"
     confidence = "high" if relationship != "unknown" else "review"
     return relationship, situation, confidence
+
+
+def resolve_context(
+    conversation_id: str, context: str
+) -> tuple[str, str, str, str]:
+    override = CORE_CONTEXT_OVERRIDES.get(conversation_id.upper())
+    if override is not None:
+        return (*override, "manual_high", "manual_core_chat_comment_review_v1")
+    relationship, situation, confidence = infer_context(context)
+    return relationship, situation, confidence, "keyword_rules_v1"
 
 
 def _profile_from_record(record: MetadataRecord | None) -> dict[str, Any]:
@@ -627,7 +661,9 @@ def prepare_sbcsae_catalog(
             )
 
         context = " ".join(comments)
-        relationship, situation, context_confidence = infer_context(context)
+        relationship, situation, context_confidence, context_method = resolve_context(
+            conversation_id, context
+        )
         observed_humans = {
             alias_to_row[name]["speaker_uid"]
             for name in observed_names
@@ -684,7 +720,7 @@ def prepare_sbcsae_catalog(
                 "minimum_observed_human_unit_share": minimum_human_share,
                 "relationship": relationship,
                 "situation": situation,
-                "context_mapping_method": "keyword_rules_v1",
+                "context_mapping_method": context_method,
                 "context_mapping_confidence": context_confidence,
                 "participants": participant_rows,
                 "audio_path": selected_audio,

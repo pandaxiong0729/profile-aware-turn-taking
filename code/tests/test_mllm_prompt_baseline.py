@@ -14,6 +14,7 @@ from profile_turntaking.mllm_prompt_baseline import (
     parse_mllm_cli_label,
     prepare_mllm_prompt_run,
     prepare_silenced_audio_control,
+    require_reviewed_labels,
     run_mllm_prompt_requests,
     run_mllm_server_requests,
     score_silenced_audio_control,
@@ -89,6 +90,7 @@ def test_audio_prompt_contains_all_three_required_inputs() -> None:
     assert "Completed causal transcript units" in prompt
     assert "backchannel is present" in prompt
     assert "interruption begins" not in prompt
+    assert '{"label":"C"}' not in prompt
     assert "[speaker_A 29.00-29.50] causal words" in prompt
 
 
@@ -152,6 +154,24 @@ def test_prepare_all_split_uses_rows_from_multiple_splits(tmp_path: Path) -> Non
     )
     assert summary["selected_samples"] == 5
     assert summary["label_quality"]["formal_claim_allowed"] is False
+    try:
+        require_reviewed_labels(tmp_path / "run-all")
+    except ValueError as error:
+        assert "unreviewed weak labels" in str(error)
+    else:
+        raise AssertionError("weak-label run must be blocked")
+    assert require_reviewed_labels(
+        tmp_path / "run-all", allow_weak_labels=True
+    )["weak_label_samples"] == 5
+
+    all_summary = prepare_mllm_prompt_run(
+        manifest,
+        tmp_path / "run-all-no-cap",
+        split="all",
+        max_per_class=0,
+        context_seconds=1.0,
+    )
+    assert all_summary["selected_samples"] == len(rows)
 
 
 def test_audit_rejects_future_transcript(tmp_path: Path) -> None:
