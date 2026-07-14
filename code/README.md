@@ -187,19 +187,19 @@ python scripts/run_prompt_baseline.py prepare `
 
 本机 Qwen3-4B 的 500 条正式测试结果见 [reports/PROMPT_BASELINE_QWEN3_4B_REPORT.md](reports/PROMPT_BASELINE_QWEN3_4B_REPORT.md)。该实验得到负/不确定结果：`given` Macro-F1 为 0.1957，低于 `hidden` 的 0.2371；这说明文本 profile 会改变预测，但尚未证明它能稳定提升 40 ms 话轮判断。
 
-## 音频 + Profile MLLM 低成本验证
+## 音频 + 因果转写 + Profile MLLM 低成本验证
 
-真正对应当前研究问题的 prompt pilot 使用现成音频 MLLM，输入只有同一段 `[t-30s, t]` 单声道 WAV 和 fixed-template profile，不输入转写。每个样本仍做 `hidden / given / shuffled` 三条件对照，并用音频 SHA-256 验证三条件音频完全相同：
+更接近当前研究问题的 prompt 实验使用现成音频 MLLM，每个请求同时输入 `[t-30s, t]` 单声道 WAV、截止 `t` 已完成的部分转写和 fixed-template 自然语言 profile，输出未来 40 ms 的五分类。每个样本做 `hidden / given / shuffled` 三条件对照；自动审计保证三次请求的音频、转写、预测边界和任务提示完全相同，只改变 profile：
 
 ```powershell
 python scripts/run_mllm_prompt_baseline.py prepare `
   --manifest ../data/processed/sbcsae_mvp/manifest.jsonl `
-  --output-dir ../artifacts/mllm-prompt-baseline/qwen2.5-omni-3b/pilot-1-per-class `
+  --output-dir ../artifacts/mllm-prompt-baseline/qwen2.5-omni-3b/audio-transcript-profile-test-100-per-class `
   --split test `
-  --max-per-class 1
+  --max-per-class 100
 ```
 
-完整的模型文件、运行和评分命令见 [docs/MLLM_PROMPT_BASELINE.md](docs/MLLM_PROMPT_BASELINE.md)。本机 Qwen2.5-Omni-3B Q4 pilot 的结果见 [reports/MLLM_PROMPT_QWEN2_5_OMNI_3B_REPORT.md](reports/MLLM_PROMPT_QWEN2_5_OMNI_3B_REPORT.md)：15/15 请求有效，但模型在五个样本的三种 profile 条件下全部输出 `I`，因此这是“链路可用、当前小模型无正向 profile 信号”的负向 smoke test，不是正式统计结论。
+完整的模型服务、审计、断点续跑和评分命令见 [docs/MLLM_PROMPT_BASELINE.md](docs/MLLM_PROMPT_BASELINE.md)。本机 Qwen2.5-Omni-3B Q4 的 500 条平衡测试结果见 [reports/MLLM_PROMPT_QWEN2_5_OMNI_3B_REPORT.md](reports/MLLM_PROMPT_QWEN2_5_OMNI_3B_REPORT.md)：1,500/1,500 请求有效，`given` accuracy 比 `hidden` 高 0.8 个百分点，但 Macro-F1 更低、配对检验不显著，而且 hidden 有 89% 输出为 `I`。因此该 checkpoint 没有提供可信的正向 profile 证据。
 
 ## 查看一条真实数据和训练输出
 

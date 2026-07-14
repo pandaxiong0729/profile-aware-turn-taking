@@ -15,10 +15,10 @@ turn-taking/
 │   │   └── data_preview/         # GitHub 可直接查看的数据/输出示例
 │   ├── reports/                  # 数据统计、问题清单和验证报告
 │   │   ├── PROMPT_BASELINE_QWEN3_4B_REPORT.md # 文本模型辅助 prompt 实验
-│   │   └── MLLM_PROMPT_QWEN2_5_OMNI_3B_REPORT.md # 音频+profile MLLM pilot
+│   │   └── MLLM_PROMPT_QWEN2_5_OMNI_3B_REPORT.md # 三路输入、500 样本 MLLM 实验
 │   ├── scripts/                  # 下载与数据预览工具
 │   │   ├── run_prompt_baseline.py # 文本大模型零训练 prompt 基线
-│   │   └── run_mllm_prompt_baseline.py # 音频 MLLM 零训练 prompt 基线
+│   │   └── run_mllm_prompt_baseline.py # 音频+因果转写+profile 零训练基线
 │   ├── src/profile_turntaking/   # 数据、模型、训练和评测实现
 │   └── tests/                    # 自动测试
 ├── data/                         # 本地数据，Git 忽略
@@ -45,13 +45,16 @@ turn-taking/
     │       ├── metrics.json
     │       ├── predictions.json
     │       └── profile_comparison.csv
-    ├── mllm-prompt-baseline/     # 真实音频的 hidden/given/shuffled MLLM pilot
+    ├── mllm-prompt-baseline/     # 三路输入的 hidden/given/shuffled MLLM 实验
     │   └── qwen2.5-omni-3b/
-    │       └── pilot-1-per-class/
+    │       ├── audio-transcript-profile-test-100-per-class/
     │           ├── audio_clips/  # 同一样本三条件共用的因果 WAV
     │           ├── requests.jsonl
     │           ├── responses.jsonl
+    │           ├── input_audit.json
+    │           ├── diagnostics.json
     │           └── metrics.json
+    │       └── silenced-audio-control-50/ # 不进入正式评分的音频敏感性诊断
     └── data-preview/
         ├── sbcsae/               # 一条真实 SBCSAE 输入/目标与 30 秒 WAV
         ├── pachat/               # 一条官方 demo、profile 和 WAV

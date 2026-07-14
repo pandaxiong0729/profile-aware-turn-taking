@@ -9,10 +9,14 @@ import numpy as np
 import profile_turntaking.mllm_prompt_baseline as mllm
 from profile_turntaking.constants import LABELS
 from profile_turntaking.mllm_prompt_baseline import (
+    audit_mllm_prompt_run,
     build_audio_prompt,
     parse_mllm_cli_label,
     prepare_mllm_prompt_run,
+    prepare_silenced_audio_control,
     run_mllm_prompt_requests,
+    run_mllm_server_requests,
+    score_silenced_audio_control,
 )
 from profile_turntaking.utils import read_jsonl, write_jsonl
 
@@ -60,7 +64,7 @@ def _rows(audio_path: Path) -> list[dict]:
                 "window_start_s": 1.0,
                 "window_end_s": 2.0,
                 "audio_path": str(audio_path),
-                "transcript_prefix": "LEAK_TRANSCRIPT",
+                "transcript_prefix": "[speaker_A 1.20-1.80] LEAK_TRANSCRIPT",
                 "profile": _profile("teacher" if conversation == "A" else "doctor"),
                 "label": label,
                 "training_target": {"next_40ms_label": "LEAK_TARGET"},
@@ -70,14 +74,20 @@ def _rows(audio_path: Path) -> list[dict]:
     return rows
 
 
-def test_audio_prompt_describes_causal_task_without_transcript() -> None:
+def test_audio_prompt_contains_all_three_required_inputs() -> None:
     prompt = build_audio_prompt(
-        {"window_start_s": 0.0, "window_end_s": 30.0}, _profile("teacher")
+        {
+            "window_start_s": 0.0,
+            "window_end_s": 30.0,
+            "transcript_prefix": "[speaker_A 29.00-29.50] causal words",
+        },
+        _profile("teacher"),
     )
     assert "30.000-second mono" in prompt
     assert "next 40 milliseconds" in prompt
     assert "teacher" in prompt
-    assert "transcript" not in prompt.lower()
+    assert "Causal partial transcript" in prompt
+    assert "[speaker_A 29.00-29.50] causal words" in prompt
 
 
 def test_prepare_uses_identical_audio_and_separates_gold(tmp_path: Path) -> None:
@@ -97,7 +107,7 @@ def test_prepare_uses_identical_audio_and_separates_gold(tmp_path: Path) -> None
     assert summary["mllm_requests"] == 15
     assert len(requests) == len(gold) == 15
     serialized = json.dumps(requests, ensure_ascii=False)
-    assert "LEAK_TRANSCRIPT" not in serialized
+    assert "LEAK_TRANSCRIPT" in serialized
     assert "LEAK_TARGET" not in serialized
     assert "LEAK_REASON" not in serialized
     assert '"target"' not in serialized
@@ -105,6 +115,9 @@ def test_prepare_uses_identical_audio_and_separates_gold(tmp_path: Path) -> None
     sample = [row for row in requests if row["sample_id"] == "sample-C"]
     assert len({row["audio_sha256"] for row in sample}) == 1
     assert len({row["audio_path"] for row in sample}) == 1
+    assert len({row["transcript_sha256"] for row in sample}) == 1
+    assert len({row["transcript_prefix"] for row in sample}) == 1
+    assert len({row["prompt_template_sha256"] for row in sample}) == 1
     prompts = {row["profile_mode"]: row["prompt"] for row in sample}
     assert "Profile information is unavailable" in prompts["hidden"]
     assert "teacher" in prompts["given"]
@@ -115,6 +128,34 @@ def test_prepare_uses_identical_audio_and_separates_gold(tmp_path: Path) -> None
         assert wav.getnchannels() == 1
         assert wav.getframerate() == 16_000
         assert wav.getnframes() == 16_000
+    audit = json.loads((tmp_path / "run" / "input_audit.json").read_text())
+    assert audit["passed"] is True
+    assert audit["class_counts"] == {label: 1 for label in LABELS}
+
+
+def test_audit_rejects_future_transcript(tmp_path: Path) -> None:
+    audio_path = tmp_path / "source.wav"
+    _write_audio(audio_path)
+    manifest = tmp_path / "manifest.jsonl"
+    write_jsonl(manifest, _rows(audio_path))
+    run_dir = tmp_path / "run"
+    prepare_mllm_prompt_run(manifest, run_dir, max_per_class=1, context_seconds=1.0)
+    requests = list(read_jsonl(run_dir / "requests.jsonl"))
+    requests[0]["transcript_prefix"] = "[speaker_A 1.90-2.10] future words"
+    requests[0]["transcript_sha256"] = mllm._sha256_text(requests[0]["transcript_prefix"])
+    requests[0]["prompt"] = requests[0]["prompt"].replace(
+        "[speaker_A 1.20-1.80] LEAK_TRANSCRIPT", requests[0]["transcript_prefix"]
+    )
+    requests[0]["prompt_template_sha256"] = mllm._sha256_text(
+        mllm._prompt_template(requests[0]["prompt"], requests[0]["profile_text"])
+    )
+    write_jsonl(run_dir / "requests.jsonl", requests)
+    try:
+        audit_mllm_prompt_run(run_dir, expected_samples=5, expected_per_class=1)
+    except ValueError as exc:
+        assert "future transcript" in str(exc) or "non-profile field" in str(exc)
+    else:
+        raise AssertionError("future transcript must fail the audit")
 
 
 def test_cli_label_parser_uses_final_json() -> None:
@@ -168,3 +209,54 @@ def test_runner_resolves_relative_audio_and_resumes(tmp_path: Path, monkeypatch)
     response = list(read_jsonl(run_dir / "responses.jsonl"))[0]
     assert response["prediction"] == "T"
     assert response["valid"] is True
+
+
+def test_server_runner_and_silenced_audio_control(tmp_path: Path, monkeypatch) -> None:
+    source = tmp_path / "source.wav"
+    _write_audio(source)
+    manifest = tmp_path / "manifest.jsonl"
+    write_jsonl(manifest, _rows(source))
+    main = tmp_path / "main"
+    prepare_mllm_prompt_run(manifest, main, max_per_class=1, context_seconds=1.0)
+    control = tmp_path / "control"
+    summary = prepare_silenced_audio_control(main, control, samples=1, seed=3)
+    assert summary["samples"] == 1
+    request = list(read_jsonl(control / "requests.jsonl"))[0]
+    original = {
+        row["request_id"]: row for row in read_jsonl(main / "requests.jsonl")
+    }[request["reference_request_id"]]
+    assert request["prompt"] == original["prompt"]
+    assert request["transcript_sha256"] == original["transcript_sha256"]
+    assert request["audio_sha256"] != original["audio_sha256"]
+    with wave.open(str(control / request["audio_path"]), "rb") as wav:
+        assert set(wav.readframes(wav.getnframes())) == {0}
+
+    monkeypatch.setattr(
+        mllm,
+        "_server_chat_completion",
+        lambda endpoint, row, **kwargs: '{"label":"C"}',
+    )
+    first = run_mllm_server_requests(
+        control / "requests.jsonl", control / "responses.jsonl"
+    )
+    second = run_mllm_server_requests(
+        control / "requests.jsonl", control / "responses.jsonl"
+    )
+    assert first["newly_written"] == 1
+    assert second["already_completed"] == 1
+
+    write_jsonl(
+        main / "responses.jsonl",
+        [
+            {
+                "request_id": request["reference_request_id"],
+                "sample_id": request["sample_id"],
+                "profile_mode": "hidden",
+                "prediction": "I",
+                "valid": True,
+            }
+        ],
+    )
+    diagnostic = score_silenced_audio_control(main, control)
+    assert diagnostic["comparable_samples"] == 1
+    assert diagnostic["changed_predictions"] == 1

@@ -1,51 +1,56 @@
 {
-  "task": "inference_only_audio_profile_mllm_baseline",
+  "task": "inference_only_audio_causal_transcript_profile_mllm_baseline",
   "training_performed": false,
   "model": "ggml-org/Qwen2.5-Omni-3B-GGUF",
   "model_revision": "75f1b73b657a50f5092502799457ccb4a4a1f9df",
   "model_file": "Qwen2.5-Omni-3B-Q4_K_M.gguf",
   "mmproj_file": "mmproj-Qwen2.5-Omni-3B-Q8_0.gguf",
-  "runtime": "llama.cpp b9987 (ad8d82199)",
+  "runtime": "llama.cpp b9987 persistent server input_audio",
   "hardware": "NVIDIA GeForce RTX 5060 Laptop GPU",
-  "peak_vram_mib": 4022,
+  "observed_vram_mib": 4658,
   "split": "test",
   "seed": 13,
   "context_seconds": 30.0,
   "horizon_ms": 40,
-  "selected_samples": 5,
-  "samples_per_class": 1,
-  "requests": 15,
-  "valid_requests": 15,
-  "transcript_is_model_input": false,
+  "selected_samples": 500,
+  "samples_per_class": 100,
+  "requests": 1500,
+  "valid_requests": 1500,
+  "input_audit_passed": true,
+  "model_inputs": [
+    "causal_mono_audio_[t-30s,t]",
+    "causal_partial_transcript_available_by_t",
+    "fixed_template_profile_text"
+  ],
+  "transcript_source": "manual_trn_causal_proxy_not_streaming_asr",
   "training_target_is_model_input": false,
   "latency_ms": {
-    "mean": 5965.807,
-    "median": 4167.048,
-    "min": 4087.761,
-    "max": 11209.379
+    "mean": 886.585,
+    "median": 332.2515,
+    "p95": 1253.30325,
+    "min": 174.529,
+    "max": 519853.878
   },
   "metrics": {
-    "hidden": {
-      "macro_f1": 0.06666666666666668,
-      "balanced_accuracy": 0.2,
-      "accuracy": 0.2
-    },
-    "given": {
-      "macro_f1": 0.06666666666666668,
-      "balanced_accuracy": 0.2,
-      "accuracy": 0.2
-    },
-    "shuffled": {
-      "macro_f1": 0.06666666666666668,
-      "balanced_accuracy": 0.2,
-      "accuracy": 0.2
-    }
+    "hidden": {"macro_f1": 0.0822728618, "balanced_accuracy": 0.194, "accuracy": 0.194},
+    "given": {"macro_f1": 0.0802524975, "balanced_accuracy": 0.202, "accuracy": 0.202},
+    "shuffled": {"macro_f1": 0.0746255259, "balanced_accuracy": 0.2, "accuracy": 0.2}
   },
-  "given_minus_hidden_macro_f1": 0.0,
   "prediction_distribution": {
-    "hidden": {"I": 5},
-    "given": {"I": 5},
-    "shuffled": {"I": 5}
+    "hidden": {"C": 55, "BC": 0, "T": 0, "I": 445, "NA": 0},
+    "given": {"C": 23, "BC": 0, "T": 0, "I": 477, "NA": 0},
+    "shuffled": {"C": 24, "BC": 0, "T": 1, "I": 475, "NA": 0}
   },
-  "interpretation": "Pipeline smoke test succeeded, but the small quantized model collapsed to I and provides no positive profile signal on this five-sample pilot."
+  "given_minus_hidden_accuracy": 0.008,
+  "given_minus_hidden_macro_f1": -0.0020203643,
+  "given_fixes_hidden_error": 12,
+  "given_breaks_hidden_correct": 8,
+  "given_vs_hidden_exact_mcnemar_p": 0.5034446716,
+  "hidden_noncollapsed": false,
+  "audio_silence_control": {
+    "samples": 50,
+    "changed_predictions": 7,
+    "changed_fraction": 0.14
+  },
+  "interpretation": "Corrected 500-sample run completed, but the checkpoint is label-collapsed and provides no statistically credible profile gain."
 }

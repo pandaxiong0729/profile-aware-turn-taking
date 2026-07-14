@@ -1,64 +1,76 @@
-# Qwen2.5-Omni-3B Audio + Profile Prompt Pilot
+# Qwen2.5-Omni-3B Three-Input Prompt Experiment (500 samples)
 
 ## Outcome
 
-The intended audio MLLM pipeline ran successfully on the local RTX 5060 Laptop GPU. All 15 requests were valid, but the model predicted `I` for every sample under every profile condition. On this five-sample smoke pilot, adding the correct profile did not improve predictions and did not change a single prediction.
+The corrected experiment completed 1,500/1,500 valid multimodal requests on 500 balanced held-out SBCSAE samples. Every request used causal audio + causal partial transcript + profile and predicted the next-40-ms five-class label.
 
-This is a negative smoke-test result, not a statistically supported conclusion about profile conditioning. The pilot has one weakly labelled sample per class and uses a general quantized MLLM that was not trained for 40-ms turn-taking forecasting.
+The correct profile did **not** produce a statistically or scientifically credible improvement with this checkpoint. Given-profile accuracy was 20.2% versus 19.4% hidden (+0.8 percentage points), but Macro-F1 decreased from 0.0823 to 0.0803. The paired exact McNemar p-value was 0.503. The hidden baseline predicted `I` on 89% of samples and never predicted `BC`, `T`, or `NA`, so it failed the precondition for interpreting a profile effect.
 
-## Experimental contract
+This is a valid negative result for the tested zero-shot checkpoint, not evidence that profiles are useless. It shows that Qwen2.5-Omni-3B Q4 with this prompt is not a credible final turn-taking baseline.
 
-- Input audio: the same 30-second, mono, 16-kHz causal WAV `[t-30 s, t]` in all three conditions.
-- Prediction horizon: `[t, t+40 ms]`.
-- Text input: fixed label instructions plus the profile condition.
-- `hidden`: profile unavailable.
-- `given`: correct conversation profile.
-- `shuffled`: another conversation's profile.
-- Excluded from model input: transcript, label, annotation evidence, and future audio.
-- Training or fine-tuning: none.
+## Audited experimental contract
 
-Each sample's three requests have one identical audio SHA-256. Targets are stored only in the separate local `gold.jsonl` file.
+- Split: SBCSAE `test` only.
+- Samples: 500, exactly 100 each for `C/BC/T/I/NA`.
+- Requests: 1,500 (`hidden/given/shuffled` for every sample).
+- Audio input: 16-kHz mono `[max(0,t-30s),t]`.
+- Text input: matching causal `transcript_prefix`, only units completed by `t`, with speaker/timestamps.
+- Profile input: fixed-template natural language; unavailable, correct, or shuffled by condition.
+- Output: exactly one of `C/BC/T/I/NA` for `[t,t+40ms]`.
+- Training/fine-tuning: none.
+- Excluded: future audio/text, target, label evidence, annotation reasons.
+
+`input_audit.json` passed with zero errors and zero warnings. For each sample, the three requests had identical audio hash, transcript hash, boundary, prompt-template hash, horizon, and output schema; only profile text changed. The current transcript is a causal manual-TRN proxy, not live streaming ASR.
+
+## Metrics
+
+| Profile condition | Macro-F1 | Balanced accuracy | Accuracy | Correct / 500 |
+|---|---:|---:|---:|---:|
+| hidden | 0.0823 | 0.1940 | 0.1940 | 97 |
+| given | 0.0803 | 0.2020 | 0.2020 | 101 |
+| shuffled | 0.0746 | 0.2000 | 0.2000 | 100 |
+
+Prediction distributions reveal the failure mode:
+
+| Condition | C | BC | T | I | NA | Dominant-label rate |
+|---|---:|---:|---:|---:|---:|---:|
+| hidden | 55 | 0 | 0 | 445 | 0 | 89.0% `I` |
+| given | 23 | 0 | 0 | 477 | 0 | 95.4% `I` |
+| shuffled | 24 | 0 | 1 | 475 | 0 | 95.0% `I` |
+
+Per-class F1:
+
+| Condition | C | BC | T | I | NA |
+|---|---:|---:|---:|---:|---:|
+| hidden | 0.0774 | 0 | 0 | 0.3339 | 0 |
+| given | 0.0650 | 0 | 0 | 0.3362 | 0 |
+| shuffled | 0.0323 | 0 | 0 | 0.3409 | 0 |
+
+The given profile fixed 12 hidden errors and broke 8 hidden-correct predictions; 89 samples were correct in both conditions and 391 wrong in both. Hidden versus given changed 66/500 predictions (13.2%), but shuffled profile also changed 64/500 (12.8%). Therefore change alone is not evidence that the correct profile supplied useful information.
+
+## Audio sensitivity diagnostic
+
+A separate diagnostic randomly selected 50 hidden-profile requests and replaced only the WAV with duration-matched digital silence. Transcript, profile, task prompt, boundary, and decoding stayed unchanged. Predictions changed on 7/50 samples (14%):
+
+- original audio: `I=45`, `C=5`;
+- silenced audio: `I=44`, `C=6`.
+
+This low change fraction suggests weak audio sensitivity under this checkpoint/prompt. It does not prove the model ignored audio, but together with the label collapse it reinforces that the run cannot support a profile-efficacy claim.
 
 ## Runtime
 
-- Model: `ggml-org/Qwen2.5-Omni-3B-GGUF`
-- Pinned revision: `75f1b73b657a50f5092502799457ccb4a4a1f9df`
-- Quantization: `Qwen2.5-Omni-3B-Q4_K_M.gguf`
-- Audio projector: `mmproj-Qwen2.5-Omni-3B-Q8_0.gguf`
-- Runtime: llama.cpp `b9987` (`ad8d82199`), `llama-mtmd-cli`
-- GPU: NVIDIA GeForce RTX 5060 Laptop GPU, 8,151 MiB
-- Observed peak VRAM: 4,022 MiB
+- Model: `ggml-org/Qwen2.5-Omni-3B-GGUF`, revision `75f1b73b657a50f5092502799457ccb4a4a1f9df`.
+- Main weights: `Qwen2.5-Omni-3B-Q4_K_M.gguf`.
+- Projector: `mmproj-Qwen2.5-Omni-3B-Q8_0.gguf`.
+- Runtime: llama.cpp `b9987`, persistent `/v1/chat/completions` server using `input_audio`.
+- GPU: NVIDIA GeForce RTX 5060 Laptop GPU, 8,151 MiB; observed server usage about 4,658 MiB.
+- 1,500-request wall time: about 22.3 minutes; throughput about 1.12 requests/s.
+- Per-request latency: median 332 ms, p95 1,253 ms; one valid server stall reached 519.9 seconds and skewed the mean to 887 ms.
 
-The complete model download is approximately 3.64 GB. The first measured request took 11.21 seconds; across the 15 recorded requests, mean latency was 5.97 seconds and median latency was 4.17 seconds. Each request used a separate CLI process, so a persistent server should be used for a larger run.
+llama.cpp reports that audio input is experimental and may have reduced quality.
 
-## Results
+## Decision
 
-| Profile condition | Macro-F1 | Balanced accuracy | Accuracy | Prediction distribution |
-|---|---:|---:|---:|---|
-| hidden | 0.0667 | 0.2000 | 0.2000 | I: 5 |
-| given | 0.0667 | 0.2000 | 0.2000 | I: 5 |
-| shuffled | 0.0667 | 0.2000 | 0.2000 | I: 5 |
+Do not cite this run as “profile improves turn-taking.” Cite it as the corrected low-cost prompt baseline showing no reliable profile gain and a severe checkpoint/output-collapse limitation. Keep the same audited three-input interface for the next model: either test a stronger audio MLLM on a validation subset before the held-out set, or fine-tune the project model/profile adapter and compare hidden/given/shuffled on the identical 500 examples.
 
-| Sample | Weak target | hidden | given | shuffled |
-|---|---|---|---|---|
-| SBC007-001184600 | NA | I | I | I |
-| SBC007-001243680 | T | I | I | I |
-| SBC017-000760840 | BC | I | I | I |
-| SBC017-001158400 | C | I | I | I |
-| SBC058-001070680 | I | I | I | I |
-
-Paired changes: the correct profile fixed zero hidden errors and broke zero hidden-correct cases. One sample was correct under both hidden and given because its target was `I`; four were wrong under both.
-
-## Audio-path sanity check
-
-On sample `SBC017-000760840`, a separate prompt asking for the final audible utterance returned `yeah`. That word is present in the sample's causal transcript context, so the model was receiving and processing audio rather than operating as a text-only model. This is only a pathway check, not an ASR-accuracy evaluation.
-
-llama.cpp also reports that audio support is experimental and may have reduced quality. Together with the all-`I` collapse, this means the current small quantized checkpoint is useful for validating the experiment code but is not a credible final baseline for profile efficacy.
-
-## Reproduction
-
-See `code/docs/MLLM_PROMPT_BASELINE.md`. Local generated requests, WAV clips, raw responses, metrics, and predictions are under:
-
-`artifacts/mllm-prompt-baseline/qwen2.5-omni-3b/pilot-1-per-class/`
-
-The downloaded model and generated SBCSAE clips remain gitignored and are not published.
+Reproduction instructions are in `code/docs/MLLM_PROMPT_BASELINE.md`. Raw SBCSAE clips, requests, responses, and model files stay under gitignored `artifacts/`, `data/`, and `models/` directories.
