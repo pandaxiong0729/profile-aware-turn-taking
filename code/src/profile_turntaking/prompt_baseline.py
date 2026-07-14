@@ -130,6 +130,92 @@ def select_prompt_rows(
     return sorted(selected, key=lambda item: str(item["sample_id"]))
 
 
+def select_conversation_balanced_rows(
+    rows: Iterable[dict[str, Any]],
+    *,
+    class_targets: dict[str, int],
+    split: str = "all",
+    max_per_conversation_class: int = 10,
+    min_boundary_separation_s: float = 5.0,
+    seed: int = 13,
+) -> list[dict[str, Any]]:
+    """Select exact class targets while limiting profile/conversation confounding."""
+
+    if max_per_conversation_class <= 0:
+        raise ValueError("max_per_conversation_class must be positive")
+    if min_boundary_separation_s < 0:
+        raise ValueError("min_boundary_separation_s must be non-negative")
+    unknown = sorted(set(class_targets) - set(LABELS))
+    if unknown or any(int(value) < 0 for value in class_targets.values()):
+        raise ValueError(f"Invalid class targets: {class_targets!r}")
+    targets = {label: int(class_targets.get(label, 0)) for label in LABELS}
+    pools: dict[str, dict[str, list[dict[str, Any]]]] = {
+        label: defaultdict(list) for label in LABELS
+    }
+    for row in rows:
+        label = str(row.get("label", ""))
+        if label in LABELS and (split == "all" or row.get("split") == split):
+            pools[label][str(row["conversation_id"])].append(row)
+
+    rng = random.Random(seed)
+    for label_pools in pools.values():
+        for candidates in label_pools.values():
+            candidates.sort(key=lambda item: str(item["sample_id"]))
+            rng.shuffle(candidates)
+
+    selected: list[dict[str, Any]] = []
+    selected_times: dict[str, list[float]] = defaultdict(list)
+    per_conversation_class: dict[tuple[str, str], int] = defaultdict(int)
+    # Rarer labels choose first so abundant C events cannot crowd out NA/BC.
+    label_order = sorted(
+        LABELS,
+        key=lambda label: sum(len(candidates) for candidates in pools[label].values()),
+    )
+    for label in label_order:
+        target = targets[label]
+        conversations = sorted(pools[label])
+        rng.shuffle(conversations)
+        chosen = 0
+        while chosen < target:
+            progressed = False
+            for conversation_id in conversations:
+                if chosen >= target:
+                    break
+                key = (conversation_id, label)
+                if per_conversation_class[key] >= max_per_conversation_class:
+                    continue
+                candidates = pools[label][conversation_id]
+                candidate = None
+                while candidates:
+                    proposed = candidates.pop()
+                    prediction_time = float(proposed["prediction_time_s"])
+                    if all(
+                        abs(prediction_time - prior) >= min_boundary_separation_s
+                        for prior in selected_times[conversation_id]
+                    ):
+                        candidate = proposed
+                        break
+                if candidate is None:
+                    continue
+                selected.append(candidate)
+                selected_times[conversation_id].append(
+                    float(candidate["prediction_time_s"])
+                )
+                per_conversation_class[key] += 1
+                chosen += 1
+                progressed = True
+            if not progressed:
+                available = {
+                    conversation_id: per_conversation_class[(conversation_id, label)]
+                    for conversation_id in conversations
+                }
+                raise ValueError(
+                    f"Cannot select {target} rows for {label}; selected {chosen} under "
+                    f"the conversation cap/separation constraints: {available}"
+                )
+    return sorted(selected, key=lambda item: str(item["sample_id"]))
+
+
 def shuffled_profile_map(rows: Sequence[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     """Rotate whole-conversation profiles as the same negative control used elsewhere."""
 

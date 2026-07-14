@@ -211,11 +211,73 @@ def audit_prompt_pilot_data(
         for speaker in ("speaker_A", "speaker_B")
     }
     class_counts = Counter(str(row["label"]) for row in selected)
+    class_conversation_counts = {
+        label: Counter(
+            str(row["conversation_id"])
+            for row in selected
+            if str(row["label"]) == label
+        )
+        for label in LABELS
+    }
+    class_conversation_coverage = {
+        label: len(class_conversation_counts[label]) for label in LABELS
+    }
+    class_max_conversation_share = {
+        label: (
+            max(class_conversation_counts[label].values()) / class_counts[label]
+            if class_counts[label]
+            else 1.0
+        )
+        for label in LABELS
+    }
+    selected_times: dict[str, list[float]] = defaultdict(list)
+    for row in selected:
+        selected_times[str(row["conversation_id"])].append(
+            float(row["prediction_time_s"])
+        )
+    observed_min_boundary_separation_s = min(
+        (
+            right - left
+            for values in selected_times.values()
+            for left, right in zip(sorted(values), sorted(values)[1:])
+        ),
+        default=None,
+    )
+    distribution_failures = []
+    for label in LABELS:
+        if class_conversation_coverage[label] < 8:
+            distribution_failures.append(
+                f"{label} covers only {class_conversation_coverage[label]} conversations"
+            )
+        if class_max_conversation_share[label] > 0.25:
+            distribution_failures.append(
+                f"{label} max conversation share is "
+                f"{class_max_conversation_share[label]:.1%}"
+            )
+    if (
+        observed_min_boundary_separation_s is not None
+        and observed_min_boundary_separation_s < 5.0 - 1e-8
+    ):
+        distribution_failures.append(
+            "selected boundaries are less than 5 seconds apart within a conversation"
+        )
+    selection_distribution_passed = not distribution_failures
+    if distribution_failures:
+        warnings.append(
+            "selection/profile confounding gate failed: "
+            + "; ".join(distribution_failures)
+        )
     implementation_passed = not errors and bool(request_audit.get("passed"))
-    prompt_pilot_ready = implementation_passed and weak == 0 and len(selected) == 500
+    prompt_pilot_ready = (
+        implementation_passed
+        and selection_distribution_passed
+        and weak == 0
+        and len(selected) == 500
+    )
     report = {
         "scope": "zero_shot_audio_transcript_profile_prompt_pilot",
         "implementation_integrity_passed": implementation_passed,
+        "selection_distribution_passed": selection_distribution_passed,
         "prompt_pilot_ready": prompt_pilot_ready,
         "formal_adapter_experiment_ready": False,
         "formal_adapter_blockers": [
@@ -251,6 +313,10 @@ def audit_prompt_pilot_data(
                 for label in LABELS
                 if event_durations[label]
             },
+            "class_conversation_coverage": class_conversation_coverage,
+            "class_max_conversation_share": class_max_conversation_share,
+            "observed_min_boundary_separation_s": observed_min_boundary_separation_s,
+            "selection_distribution_failures": distribution_failures,
         },
         "profile": {
             "context_mapping_methods_by_conversation": dict(context_methods),

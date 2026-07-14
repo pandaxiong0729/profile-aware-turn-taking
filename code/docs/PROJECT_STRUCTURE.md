@@ -19,6 +19,7 @@ turn-taking/
 │   │   └── MLLM_PROMPT_QWEN2_5_OMNI_3B_REPORT.md # 已作废旧运行的问题记录
 │   ├── scripts/                  # 数据准备、审计、复核与实验入口
 │   │   ├── audit_prompt_pilot_data.py # 深度检查输入、标签、profile 和 split
+│   │   ├── select_prompt_review_set.py # 按会话平衡并隔开预测边界
 │   │   ├── review_labels.py     # 生成/导入 500 条人工复核页面
 │   │   └── run_mllm_prompt_baseline.py # 音频+因果转写+profile 零训练基线
 │   ├── src/profile_turntaking/   # 数据、模型、训练和评测实现
@@ -49,7 +50,7 @@ turn-taking/
     │       └── profile_comparison.csv
     ├── mllm-prompt-baseline/     # 三路输入的 hidden/given/shuffled prompt 实验
     │   └── qwen2.5-omni-3b/
-    │       ├── onset-500-review-required/ # 当前候选集；尚未运行推理
+    │       ├── onset-balanced-500-review-required/ # 当前候选集；尚未运行推理
     │       │   ├── audio_clips/  # 只到预测时刻 t 的因果 WAV
     │       │   ├── review_clips/ # 仅供人工标注、含 t 后信息；绝不进模型
     │       │   ├── requests.jsonl # hidden/given/shuffled 三条件请求
@@ -57,6 +58,7 @@ turn-taking/
     │       │   ├── review.html   # 500 条人工复核页面
     │       │   ├── input_audit.json
     │       │   └── preflight_audit.json
+    │       ├── onset-500-review-required/ # 会话/profile 分布审计未通过
     │       └── audio-transcript-profile-test-100-per-class/ # 已作废旧运行
     └── data-preview/
         ├── sbcsae/               # 一条真实 SBCSAE 输入/目标与 30 秒 WAV
@@ -77,6 +79,8 @@ sbcsae_catalog_v2
 manifest.jsonl + event_manifest.jsonl + event_onset_manifest.jsonl + split_map.json
 
 prompt 验证：event_onset_manifest.jsonl
+        ↓ select_prompt_review_set（会话平衡、边界间隔至少 5 秒）
+prompt_review_balanced_500.jsonl
         ↓ audit_prompt_pilot_data + review_labels（500 条）
 preflight_audit.json + reviewed_500.jsonl
         ↓ 同一现成 MLLM 推理；不训练
@@ -102,7 +106,7 @@ metrics.json + predictions.json + profile_comparison.csv
 - profile 输入：Speaker A/B、relationship、situation；
 - 目标输出：下一个 40 ms 的 `C / BC / T / I / NA` 弱标签。
 
-训练用逐帧数据位于 `data/processed/sbcsae_mvp_v2/manifest.jsonl`。低成本 prompt 验证不直接从重复的逐帧行抽样，而从 `event_onset_manifest.jsonl` 选择 500 个事件起点；每类先提出 100 条候选，再人工确认标签。使用 `scripts/export_data_preview.py --sample-id ...` 可以把任意一行变成容易阅读的 JSON 和可直接试听的 WAV。
+训练用逐帧数据位于 `data/processed/sbcsae_mvp_v2/manifest.jsonl`。低成本 prompt 验证不直接从重复的逐帧行抽样，而从 `event_onset_manifest.jsonl` 建立按会话平衡的 500 个事件起点：C/BC/T/I 各 110 条、NA 60 条。每个会话每类最多 10 条，同一会话边界至少相隔 5 秒；这样避免静态 profile 与某个类别被单一会话绑定。候选随后逐条人工确认。使用 `scripts/export_data_preview.py --sample-id ...` 可以把任意一行变成容易阅读的 JSON 和可直接试听的 WAV。
 
 `review_clips/` 是标注工具专用音频，允许包含预测点之后最多 2 秒，以便人判断事件类型；`requests.jsonl` 引用的 `audio_clips/` 严格止于预测点，两者不可混用。
 

@@ -34,34 +34,52 @@ Within one sample, audio SHA-256, transcript SHA-256, prediction boundary, task 
 
 ## Prepare the 500-event review set
 
-Run from the repository root. Select the onset frame from each distinct
-weak event across all 16 core conversations. This is allowed here because the
-existing MLLM is zero-shot and was not trained on SBCSAE. These 500 rows remain
+Run from the repository root. Start from one onset row per distinct weak event,
+then make a fixed 500-row manifest that controls conversation/profile imbalance.
+The earlier equal-100-per-class selection was rejected because 91% of its NA
+rows came from only SBC024/SBC029. The current diagnostic set uses 110 rows for
+each of C/BC/T/I and 60 NA rows: every non-NA class covers all 16 conversations,
+NA covers 13, no conversation supplies more than 10 rows of one class, and
+boundaries from one conversation are at least 5 seconds apart. These rows remain
 candidate weak labels until review; `run_config.json` must report
 `formal_claim_allowed: true` before the result is cited.
 
 ```powershell
 $python = ".\.venv\Scripts\python.exe"
 $env:PYTHONPATH = "code/src"
-$run = "artifacts\mllm-prompt-baseline\qwen2.5-omni-3b\onset-500-review-required"
+$candidate = "data\processed\sbcsae_mvp_v2\prompt_review_balanced_500.jsonl"
+$run = "artifacts\mllm-prompt-baseline\qwen2.5-omni-3b\onset-balanced-500-review-required"
+
+& $python code\scripts\select_prompt_review_set.py `
+  --input-manifest data\processed\sbcsae_mvp_v2\event_onset_manifest.jsonl `
+  --output-manifest $candidate `
+  --class-targets C=110,BC=110,T=110,I=110,NA=60 `
+  --max-per-conversation-class 10 `
+  --min-boundary-separation-s 5 `
+  --seed 13
 
 & $python code\scripts\run_mllm_prompt_baseline.py prepare `
-  --manifest data\processed\sbcsae_mvp_v2\event_onset_manifest.jsonl `
+  --manifest $candidate `
   --output-dir $run `
   --split all `
-  --max-per-class 100 `
+  --max-per-class 0 `
   --context-seconds 30 `
   --max-transcript-chars 6000 `
   --seed 13
 
 & $python code\scripts\run_mllm_prompt_baseline.py audit `
   --run-dir $run `
-  --expected-samples 500 `
-  --expected-per-class 100
+  --expected-samples 500
+
+& $python code\scripts\audit_prompt_pilot_data.py `
+  --catalog-dir data\processed\sbcsae_catalog_v2 `
+  --event-manifest data\processed\sbcsae_mvp_v2\event_onset_manifest.jsonl `
+  --run-dir $run `
+  --output $run\preflight_audit.json
 
 & $python code\scripts\review_labels.py build `
   --run-dir $run `
-  --source-manifest data\processed\sbcsae_mvp_v2\event_onset_manifest.jsonl `
+  --source-manifest $candidate `
   --catalog-dir data\processed\sbcsae_catalog_v2
 ```
 
@@ -76,7 +94,7 @@ the complete review:
 
 ```powershell
 & $python code\scripts\review_labels.py apply `
-  --source-manifest data\processed\sbcsae_mvp_v2\event_onset_manifest.jsonl `
+  --source-manifest $candidate `
   --review-json $run\reviewed_labels.json `
   --output-manifest data\processed\sbcsae_mvp_v2\reviewed_500.jsonl `
   --reviewer-id annotator-1

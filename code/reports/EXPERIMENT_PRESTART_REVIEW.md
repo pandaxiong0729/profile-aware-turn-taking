@@ -44,8 +44,9 @@ temperature 和 seed 完全相同；只替换 profile 文本。
 | 原始 profile metadata | `data/sbcsae/metadata/` |
 | 修复后的 60 会话 catalog | `data/processed/sbcsae_catalog_v2/` |
 | 逐 40 ms 弱标签与事件 | `data/processed/sbcsae_mvp_v2/` |
-| 推荐的事件起点 manifest | `data/processed/sbcsae_mvp_v2/event_onset_manifest.jsonl` |
-| 500 条待复核请求 | `artifacts/mllm-prompt-baseline/qwen2.5-omni-3b/onset-500-review-required/` |
+| 全部事件起点 manifest | `data/processed/sbcsae_mvp_v2/event_onset_manifest.jsonl` |
+| 当前会话平衡的 500 条 | `data/processed/sbcsae_mvp_v2/prompt_review_balanced_500.jsonl` |
+| 500 条待复核请求 | `artifacts/mllm-prompt-baseline/qwen2.5-omni-3b/onset-balanced-500-review-required/` |
 | 深度审计 | 上述目录的 `preflight_audit.json` |
 | 人工复核页面 | 上述目录的 `review.html` |
 
@@ -60,8 +61,13 @@ temperature 和 seed 完全相同；只替换 profile 文本。
 5. 每个事件生成两种代表点：
    - `midpoint_grid`：事件中点，适合“识别正在发生的状态”；
    - `onset`：事件起始网格点，适合“预测下一块将出现什么”。
-6. 本轮采用 `onset`，跨全部 16 个会话固定随机种子 13，每个候选类别抽
-   100 个事件，共 500 个不同 `weak_event_id`。
+6. 第一版从每类随机抽 100 条，但审计发现 NA 的 54% 来自 SBC024、37% 来自
+   SBC029；静态 profile 因而可能充当“会话 ID→类别先验”，该候选集已在推理
+   前拒绝。
+7. 当前固定随机种子 13，选择 C/BC/T/I 各 110 条、NA 60 条，共 500 个不同
+   `weak_event_id`。每个会话每类最多 10 条，同一会话的任意两个预测边界至少
+   相隔 5 秒。C/BC/T/I 均覆盖 16 会话，NA 覆盖 13 会话；单个会话在任何类中
+   的最大占比为 16.7%。
 
 使用全部 16 个会话不会造成模型训练泄漏，因为这个 checkpoint 没有在
 SBCSAE 上训练。后续 adapter 训练仍必须使用 speaker-connected train/val/test。
@@ -164,7 +170,10 @@ Prompt 中没有目标标签示例、未来文本或 annotation evidence。模�
 |---|---:|
 | event manifest 行数 / 唯一 event ID | 10,555 / 10,555 |
 | 选中样本 | 500，覆盖 16 会话 |
-| 候选类别 | 每类 100 |
+| 候选类别 | C/BC/T/I 各 110；NA 60 |
+| 类别覆盖的会话数 | C/BC/T/I 各 16；NA 13 |
+| 单会话最大类别占比 | 16.7%（NA） |
+| 同会话最小预测边界间隔 | 5.08 秒 |
 | 重新计算标签与 manifest 不一致 | 0 |
 | Speaker/Profile 映射不一致 | 0 |
 | 源音频映射不一致 | 0 |
@@ -177,8 +186,8 @@ Prompt 中没有目标标签示例、未来文本或 annotation evidence。模�
 仍需人工复核的风险：
 
 - 500/500 仍是弱标签；
-- 78 个 onset 窗口含活动的非词汇人声单元，例如呼吸/笑声标记；
-- 8 个窗口同时存在环境或非人物标注；
+- 81 个 onset 窗口含活动的非词汇人声单元，例如呼吸/笑声标记；
+- 24 个窗口同时存在环境或非人物标注，其中 22 个是 NA 候选；
 - 只有 2 个 `I` 候选在 onset 边界前已经存在重叠，需要重点改时点或改标签；
 - 当前转写不是 streaming ASR。
 
@@ -241,4 +250,4 @@ profile 普遍无效。
 | 复核命令 | `scripts/review_labels.py` |
 | 深度审计命令 | `scripts/audit_prompt_pilot_data.py` |
 
-当前自动化测试为 44/44 通过。
+当前自动化测试为 45/45 通过。

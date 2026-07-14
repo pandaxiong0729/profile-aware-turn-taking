@@ -192,14 +192,21 @@ python scripts/run_prompt_baseline.py prepare `
 更接近当前研究问题的 prompt 实验使用现成音频 MLLM，每个请求同时输入 `[t-30s, t]` 单声道 WAV、截止 `t` 已完成的转写单元和 fixed-template 自然语言 profile，输出未来 40 ms 的五分类状态。每个样本做 `hidden / given / shuffled` 三条件对照；自动审计保证三次请求的音频、转写、预测边界和任务提示完全相同，只改变 profile：
 
 ```powershell
+python scripts/select_prompt_review_set.py `
+  --input-manifest ../data/processed/sbcsae_mvp_v2/event_onset_manifest.jsonl `
+  --output-manifest ../data/processed/sbcsae_mvp_v2/prompt_review_balanced_500.jsonl `
+  --class-targets C=110,BC=110,T=110,I=110,NA=60 `
+  --max-per-conversation-class 10 `
+  --min-boundary-separation-s 5
+
 python scripts/run_mllm_prompt_baseline.py prepare `
-  --manifest ../data/processed/sbcsae_mvp_v2/event_onset_manifest.jsonl `
-  --output-dir ../artifacts/mllm-prompt-baseline/qwen2.5-omni-3b/onset-500-review-required `
+  --manifest ../data/processed/sbcsae_mvp_v2/prompt_review_balanced_500.jsonl `
+  --output-dir ../artifacts/mllm-prompt-baseline/qwen2.5-omni-3b/onset-balanced-500-review-required `
   --split all `
-  --max-per-class 100
+  --max-per-class 0
 ```
 
-完整的模型服务、审计、断点续跑和评分命令见 [docs/MLLM_PROMPT_BASELINE.md](docs/MLLM_PROMPT_BASELINE.md)，重新实验前的输入、prompt、指标和数据验收见 [reports/EXPERIMENT_PRESTART_REVIEW.md](reports/EXPERIMENT_PRESTART_REVIEW.md)。此前 Qwen2.5-Omni-3B Q4 的 500 条运行在复核后发现系统性弱标签、重复事件抽样和提示语义问题，已经在 [reports/MLLM_PROMPT_QWEN2_5_OMNI_3B_REPORT.md](reports/MLLM_PROMPT_QWEN2_5_OMNI_3B_REPORT.md) 中明确标记为无效，不能作为正向或负向结论。新流程使用 16 个会话的不同事件起点，并要求人工复核后才允许推理和评分。
+完整的模型服务、审计、断点续跑和评分命令见 [docs/MLLM_PROMPT_BASELINE.md](docs/MLLM_PROMPT_BASELINE.md)，重新实验前的输入、prompt、指标和数据验收见 [reports/EXPERIMENT_PRESTART_REVIEW.md](reports/EXPERIMENT_PRESTART_REVIEW.md)。此前 Qwen2.5-Omni-3B Q4 的 500 条运行在复核后发现系统性弱标签、重复事件抽样和提示语义问题，已经在 [reports/MLLM_PROMPT_QWEN2_5_OMNI_3B_REPORT.md](reports/MLLM_PROMPT_QWEN2_5_OMNI_3B_REPORT.md) 中明确标记为无效，不能作为正向或负向结论。第一版 onset 候选集也因 NA 的会话/profile 集中度过高而在推理前被审计拒绝；当前流程按会话平衡 500 个事件起点，并要求人工复核后才允许推理和评分。
 
 ## 查看一条真实数据和训练输出
 

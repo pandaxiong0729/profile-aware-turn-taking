@@ -9,6 +9,7 @@ from profile_turntaking.prompt_baseline import (
     prepare_prompt_run,
     profile_to_prompt,
     score_prompt_run,
+    select_conversation_balanced_rows,
 )
 from profile_turntaking.utils import read_jsonl, write_jsonl
 
@@ -92,6 +93,57 @@ def test_parse_label_accepts_json_and_rejects_ambiguous_text() -> None:
     assert parse_label("NA") == "NA"
     assert parse_label("I predict C, but BC is possible") is None
     assert parse_label('{"label":"other"}') is None
+
+
+def test_conversation_balanced_selector_limits_profile_label_confounding() -> None:
+    rows = []
+    for conversation_index in range(5):
+        for label_index, label in enumerate(LABELS):
+            for candidate_index in range(4):
+                rows.append(
+                    {
+                        "sample_id": (
+                            f"c{conversation_index}-{label}-{candidate_index}"
+                        ),
+                        "conversation_id": f"c{conversation_index}",
+                        "split": "test",
+                        "label": label,
+                        "prediction_time_s": (
+                            conversation_index * 1000
+                            + label_index * 100
+                            + candidate_index * 10
+                        ),
+                    }
+                )
+    selected = select_conversation_balanced_rows(
+        rows,
+        class_targets={label: 4 for label in LABELS},
+        split="test",
+        max_per_conversation_class=2,
+        min_boundary_separation_s=5.0,
+        seed=13,
+    )
+    assert len(selected) == 20
+    for label in LABELS:
+        label_rows = [row for row in selected if row["label"] == label]
+        assert len(label_rows) == 4
+        by_conversation = {
+            conversation_id: sum(
+                row["conversation_id"] == conversation_id for row in label_rows
+            )
+            for conversation_id in {row["conversation_id"] for row in label_rows}
+        }
+        assert max(by_conversation.values()) <= 2
+    by_conversation_times: dict[str, list[float]] = {}
+    for row in selected:
+        by_conversation_times.setdefault(row["conversation_id"], []).append(
+            row["prediction_time_s"]
+        )
+    assert all(
+        right - left >= 5.0
+        for values in by_conversation_times.values()
+        for left, right in zip(sorted(values), sorted(values)[1:])
+    )
 
 
 def test_score_uses_only_samples_valid_in_all_three_modes(tmp_path: Path) -> None:

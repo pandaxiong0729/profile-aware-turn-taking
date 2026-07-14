@@ -72,7 +72,7 @@ generic speech/no-speech VAD cannot be treated as ground truth.
 - Added a local review page with audio, completed-unit transcript, keyboard labels,
   uncertain marking, notes, browser-local progress, and JSON export.
 - Invalidated the previous report and summary in the repository.
-- All 42 automated tests pass.
+- The current automated suite has 45 passing tests.
 
 ## Required gate before rerunning the MLLM
 
