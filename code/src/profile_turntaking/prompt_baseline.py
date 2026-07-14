@@ -109,11 +109,15 @@ def select_prompt_rows(
     max_per_class: int = 20,
     seed: int = 13,
 ) -> list[dict[str, Any]]:
-    """Select a small deterministic class-stratified pilot from one held-out split."""
+    """Select a deterministic class-stratified pilot.
+
+    ``split='all'`` is intended only for inference-only evaluation where no
+    checkpoint was trained on the corpus (for example, a zero-shot MLLM).
+    """
 
     by_label: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
-        if row.get("split") == split and row.get("label") in LABELS:
+        if (split == "all" or row.get("split") == split) and row.get("label") in LABELS:
             by_label[str(row["label"])].append(row)
     rng = random.Random(seed)
     selected: list[dict[str, Any]] = []

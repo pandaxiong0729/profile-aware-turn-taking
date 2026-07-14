@@ -7,7 +7,7 @@ This is a zero-training, low-cost validation with an existing audio-capable MLLM
 For a prediction boundary `t`, every request contains all three required inputs:
 
 1. a 16-kHz mono conversation WAV covering `[max(0,t-30s),t]`;
-2. the matching partial transcript containing only dialogue units completed by `t`, with `speaker_A/speaker_B` and timestamps;
+2. the matching completed-unit transcript containing only dialogue units completed by `t`, with `speaker_A/speaker_B` and timestamps;
 3. a profile rendered with one fixed natural-language template.
 
 The current SBCSAE manifest uses the causal manual-TRN proxy in `transcript_prefix`; it is not a real streaming-ASR output. A deployed system should replace this field with the ASR prefix actually available at `t`.
@@ -15,9 +15,9 @@ The current SBCSAE manifest uses the causal manual-TRN proxy in `transcript_pref
 The only model output is one label for `[t,t+40ms]`:
 
 - `C`: current speaker continues;
-- `BC`: listener starts a short backchannel;
+- `BC`: a short listener backchannel is present while the other participant keeps the floor;
 - `T`: floor transfers;
-- `I`: non-backchannel overlap/interruption begins;
+- `I`: both participants speak and the overlap is not a backchannel;
 - `NA`: nobody speaks.
 
 The response is schema-constrained to `{"label":"C|BC|T|I|NA"}`. The target and annotation evidence live only in `gold.jsonl` and never enter a request.
@@ -32,19 +32,23 @@ Each held-out sample is sent three times:
 
 Within one sample, audio SHA-256, transcript SHA-256, prediction boundary, task instructions, output schema, and decoding parameters are identical. Only the profile text changes. `input_audit.json` verifies this contract and aborts the batch on any mismatch or future-text leakage.
 
-## Reproduce the 500-sample run
+## Prepare the 500-event review set
 
-Run from the repository root. The formal set is balanced at 100 test samples per class, producing 1,500 requests.
+Run from the repository root. Select one representative frame from each distinct
+weak event across all 16 core conversations. This is allowed here because the
+existing MLLM is zero-shot and was not trained on SBCSAE. These 500 rows remain
+candidate weak labels until review; `run_config.json` must report
+`formal_claim_allowed: true` before the result is cited.
 
 ```powershell
 $python = ".\.venv\Scripts\python.exe"
 $env:PYTHONPATH = "code/src"
-$run = "artifacts\mllm-prompt-baseline\qwen2.5-omni-3b\audio-transcript-profile-test-100-per-class"
+$run = "artifacts\mllm-prompt-baseline\qwen2.5-omni-3b\v2-event-500-review-required"
 
 & $python code\scripts\run_mllm_prompt_baseline.py prepare `
-  --manifest data\processed\sbcsae_mvp\manifest.jsonl `
+  --manifest data\processed\sbcsae_mvp_v2\event_manifest.jsonl `
   --output-dir $run `
-  --split test `
+  --split all `
   --max-per-class 100 `
   --context-seconds 30 `
   --max-transcript-chars 6000 `
@@ -54,9 +58,25 @@ $run = "artifacts\mllm-prompt-baseline\qwen2.5-omni-3b\audio-transcript-profile-
   --run-dir $run `
   --expected-samples 500 `
   --expected-per-class 100
+
+& $python code\scripts\review_labels.py build --run-dir $run
 ```
 
-Start one persistent llama.cpp multimodal server. This avoids loading the model for every request:
+Open `$run\review.html`. It plays the same causal audio and shows only completed
+transcript units. Label with keys `1–5`, use `U` for uncertain cases, and export
+`reviewed_labels.json`. Apply the complete review:
+
+```powershell
+& $python code\scripts\review_labels.py apply `
+  --source-manifest data\processed\sbcsae_mvp_v2\event_manifest.jsonl `
+  --review-json $run\reviewed_labels.json `
+  --output-manifest data\processed\sbcsae_mvp_v2\reviewed_500.jsonl `
+  --reviewer-id annotator-1
+```
+
+Regenerate the run from `reviewed_500.jsonl`; its `run_config.json` must show 500
+human-reviewed samples. Do not start the model before this gate passes. Then start
+one persistent llama.cpp server:
 
 ```powershell
 & models\llama.cpp-b9987\llama-server.exe `
@@ -98,4 +118,6 @@ The runner appends one response at a time. Re-running it resumes from `responses
 - `paired_changes.json`: given fixes/breaks relative to hidden;
 - `diagnostics.json`: output distributions, paired changes, latency, and collapse gate.
 
-The measured 500-sample result is in `code/reports/MLLM_PROMPT_QWEN2_5_OMNI_3B_REPORT.md`. Generated SBCSAE audio and raw artifacts remain gitignored.
+The earlier measured result in
+`code/reports/MLLM_PROMPT_QWEN2_5_OMNI_3B_REPORT.md` is explicitly invalidated.
+Generated SBCSAE audio and raw artifacts remain gitignored.

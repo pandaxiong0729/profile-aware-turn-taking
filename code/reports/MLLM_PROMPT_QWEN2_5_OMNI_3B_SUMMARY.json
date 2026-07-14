@@ -1,4 +1,13 @@
 {
+  "result_status": "invalidated_do_not_cite",
+  "formal_claim_allowed": false,
+  "invalidation_reasons": [
+    "systematic_weak_label_errors",
+    "repeated_frames_from_the_same_event",
+    "only_three_test_sessions",
+    "prompt_state_vs_onset_semantic_mismatch",
+    "completed_unit_transcript_is_not_streaming_asr_prefix"
+  ],
   "task": "inference_only_audio_causal_transcript_profile_mllm_baseline",
   "training_performed": false,
   "model": "ggml-org/Qwen2.5-Omni-3B-GGUF",
@@ -52,5 +61,5 @@
     "changed_predictions": 7,
     "changed_fraction": 0.14
   },
-  "interpretation": "Corrected 500-sample run completed, but the checkpoint is label-collapsed and provides no statistically credible profile gain."
+  "interpretation": "INVALIDATED: these metrics are retained only for debugging and do not support a profile-effect claim."
 }

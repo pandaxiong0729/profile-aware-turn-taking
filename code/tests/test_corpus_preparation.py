@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import random
 import wave
 from pathlib import Path
 
@@ -12,7 +13,10 @@ from profile_turntaking.sbcsae_corpus import (
     metadata_aliases,
     normalize_speaker_name,
 )
-from profile_turntaking.sbcsae_manifest import MonotonicWeakLabeler
+from profile_turntaking.sbcsae_manifest import (
+    MonotonicWeakLabeler,
+    _event_representative_time,
+)
 from profile_turntaking.schemas import Utterance
 
 
@@ -63,6 +67,37 @@ def test_monotonic_labeler_matches_reference_examples() -> None:
         Utterance(3.0, 3.8, "speaker_A", "overlapping disagreement"),
     ]
     times = [0.5, 1.0, 2.1, 2.4, 3.1]
+    labeler = MonotonicWeakLabeler(rows, 40)
+    assert [labeler.label(time_s) for time_s in times] == [
+        label_at(rows, time_s) for time_s in times
+    ]
+
+
+def test_monotonic_labeler_does_not_turn_sequential_speech_into_overlap() -> None:
+    rows = [
+        Utterance(0.0, 1.01, "speaker_A", "ending"),
+        Utterance(1.02, 2.0, "speaker_B", "starting"),
+    ]
+    labeler = MonotonicWeakLabeler(rows, 40)
+    assert labeler.label(1.0) == label_at(rows, 1.0) == "T"
+
+
+def test_event_representative_is_an_observed_grid_frame() -> None:
+    event = {"start_s": 10.0, "end_s": 10.2}
+    assert _event_representative_time(event, frame_stride_ms=40) == 10.08
+
+
+def test_monotonic_labeler_matches_reference_on_random_sequences() -> None:
+    rng = random.Random(7)
+    rows = []
+    for index in range(80):
+        start = round(rng.uniform(0.0, 12.0), 3)
+        duration = rng.uniform(0.08, 1.6)
+        text = "Mhm" if index % 13 == 0 else f"words {index}"
+        rows.append(
+            Utterance(start, round(start + duration, 3), f"speaker_{'A' if index % 2 else 'B'}", text)
+        )
+    times = [round(index * 0.04, 3) for index in range(1, 300)]
     labeler = MonotonicWeakLabeler(rows, 40)
     assert [labeler.label(time_s) for time_s in times] == [
         label_at(rows, time_s) for time_s in times

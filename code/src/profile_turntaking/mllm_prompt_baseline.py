@@ -80,21 +80,21 @@ def build_audio_prompt(
                 f"The attached {duration_s:.3f}-second mono conversation audio contains only "
                 "information available before the prediction boundary and ends exactly at time t."
             ),
-            "Predict the event in the next 40 milliseconds, [t, t+40 ms].",
+            "Classify the conversational state during the next 40-millisecond chunk, [t, t+40 ms].",
             "",
             "Labels:",
-            "- C: the current speaker continues speaking.",
-            "- BC: the listener begins a short backchannel without taking the floor.",
-            "- T: the floor transfers to the other participant.",
-            "- I: non-backchannel overlapping speech or an interruption begins.",
-            "- NA: neither participant speaks.",
+            "- C: exactly one participant is speaking and keeps the current floor.",
+            "- BC: a short listener backchannel is present while the other participant keeps the floor.",
+            "- T: exactly one participant is speaking after the floor transfers to that participant in this chunk.",
+            "- I: both participants speak in this chunk and the overlap is not a backchannel.",
+            "- NA: neither participant speaks in this chunk.",
             "",
             "Use audible speech activity, pauses, overlap, turn-final prosody, and backchannel cues.",
             "The recording is mono and may contain both participants; do not invent a speaker identity.",
-            "The transcript below is a causal partial transcript: every listed unit ended no later than time t.",
+            "The transcript below contains completed causal transcript units; every listed unit ended no later than time t.",
             "Use it together with the audio; do not infer or invent future words.",
             "",
-            "Causal partial transcript available before time t:",
+            "Completed causal transcript units available before time t:",
             transcript,
             "",
             "Profile condition:",
@@ -175,7 +175,9 @@ def prepare_mllm_prompt_run(
     )
     if not selected:
         raise ValueError(f"No eligible rows found for split={split!r}")
-    split_rows = [row for row in all_rows if row.get("split") == split]
+    split_rows = [
+        row for row in all_rows if split == "all" or row.get("split") == split
+    ]
     shuffled = shuffled_profile_map(split_rows)
     destination = Path(output_dir)
     clips_dir = destination / "audio_clips"
@@ -256,6 +258,8 @@ def prepare_mllm_prompt_run(
                     "conversation_id": row["conversation_id"],
                     "profile_mode": profile_mode,
                     "target": row["label"],
+                    "label_source": row.get("label_source", "unknown"),
+                    "gold_label": bool(row.get("gold_label", False)),
                 }
             )
 
@@ -278,18 +282,23 @@ def prepare_mllm_prompt_run(
         "request_file_contains_targets": False,
         "model_inputs": [
             "causal_mono_audio_[t-30s,t]",
-            "causal_partial_transcript_available_by_t",
+            "completed_causal_transcript_units_available_by_t",
             "fixed_template_profile_text",
         ],
         "model_output": "one_of_C_BC_T_I_NA_for_[t,t+40ms]",
         "transcript_is_model_input": True,
+        "label_quality": {
+            "human_gold_samples": sum(bool(row.get("gold_label", False)) for row in selected),
+            "weak_label_samples": sum(not bool(row.get("gold_label", False)) for row in selected),
+            "formal_claim_allowed": all(bool(row.get("gold_label", False)) for row in selected),
+        },
         "paired_invariant": (
             "Within a sample, audio, causal transcript, prediction boundary, task prompt, "
             "output schema, and decoding are identical; only profile_text changes."
         ),
         "limitations": [
             "This is zero-shot prompting; no model training or fine-tuning is performed.",
-            "SBCSAE MVP labels are weak labels, not frame-accurate human gold labels.",
+            "Automatic SBCSAE labels are candidate weak labels until the selected events are reviewed.",
             "A general MLLM was not specifically trained to forecast a 40-ms event horizon.",
         ],
     }

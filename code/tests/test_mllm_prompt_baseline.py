@@ -84,9 +84,11 @@ def test_audio_prompt_contains_all_three_required_inputs() -> None:
         _profile("teacher"),
     )
     assert "30.000-second mono" in prompt
-    assert "next 40 milliseconds" in prompt
+    assert "next 40-millisecond chunk" in prompt
     assert "teacher" in prompt
-    assert "Causal partial transcript" in prompt
+    assert "Completed causal transcript units" in prompt
+    assert "backchannel is present" in prompt
+    assert "interruption begins" not in prompt
     assert "[speaker_A 29.00-29.50] causal words" in prompt
 
 
@@ -131,6 +133,25 @@ def test_prepare_uses_identical_audio_and_separates_gold(tmp_path: Path) -> None
     audit = json.loads((tmp_path / "run" / "input_audit.json").read_text())
     assert audit["passed"] is True
     assert audit["class_counts"] == {label: 1 for label in LABELS}
+
+
+def test_prepare_all_split_uses_rows_from_multiple_splits(tmp_path: Path) -> None:
+    audio_path = tmp_path / "source.wav"
+    _write_audio(audio_path)
+    rows = _rows(audio_path)
+    for index, row in enumerate(rows):
+        row["split"] = "test" if index % 2 else "train"
+    manifest = tmp_path / "manifest.jsonl"
+    write_jsonl(manifest, rows)
+    summary = prepare_mllm_prompt_run(
+        manifest,
+        tmp_path / "run-all",
+        split="all",
+        max_per_class=1,
+        context_seconds=1.0,
+    )
+    assert summary["selected_samples"] == 5
+    assert summary["label_quality"]["formal_claim_allowed"] is False
 
 
 def test_audit_rejects_future_transcript(tmp_path: Path) -> None:

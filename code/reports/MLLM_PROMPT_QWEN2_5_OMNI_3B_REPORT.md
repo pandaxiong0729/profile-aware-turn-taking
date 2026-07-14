@@ -1,12 +1,25 @@
-# Qwen2.5-Omni-3B Three-Input Prompt Experiment (500 samples)
+# INVALIDATED — Qwen2.5-Omni-3B Three-Input Prompt Experiment
+
+> **Do not cite these numbers as an experimental result.** A post-run audit found
+> systematic weak-label, sampling, prompt-semantics, and transcript-proxy errors.
+> The output below is retained only as a debugging record and must be replaced by
+> the reviewed event-level v2 evaluation.
 
 ## Outcome
 
-The corrected experiment completed 1,500/1,500 valid multimodal requests on 500 balanced held-out SBCSAE samples. Every request used causal audio + causal partial transcript + profile and predicted the next-40-ms five-class label.
+The invalidated run completed 1,500/1,500 requests, but request validity did not
+make its targets valid. The 500 rows came from only three sessions and repeatedly
+sampled the same continuous events. The old labeler deleted lexical overlap text
+such as `[Mhm]`, confused sequential turns with overlap, missed a recovered TRN
+row, and asked the model whether BC/I *began* although the targets represented a
+40-ms state. Consequently, the metrics below do not support a negative or positive
+conclusion about profile usefulness.
 
 The correct profile did **not** produce a statistically or scientifically credible improvement with this checkpoint. Given-profile accuracy was 20.2% versus 19.4% hidden (+0.8 percentage points), but Macro-F1 decreased from 0.0823 to 0.0803. The paired exact McNemar p-value was 0.503. The hidden baseline predicted `I` on 89% of samples and never predicted `BC`, `T`, or `NA`, so it failed the precondition for interpreting a profile effect.
 
-This is a valid negative result for the tested zero-shot checkpoint, not evidence that profiles are useless. It shows that Qwen2.5-Omni-3B Q4 with this prompt is not a credible final turn-taking baseline.
+The model also collapsed toward `I`, but that checkpoint behavior must be assessed
+again only after target review. It cannot rescue the invalid labels, and the invalid
+labels cannot establish that the checkpoint is intrinsically unsuitable.
 
 ## Audited experimental contract
 

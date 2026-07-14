@@ -15,14 +15,24 @@ from .constants import BACKCHANNEL_WORDS, LABELS, UNKNOWN_PROFILE
 from .schemas import Sample, Utterance
 from .utils import write_json, write_jsonl
 
-_ANNOTATION_RE = re.compile(r"\[[^\]]*\]|<[^>]*>|\([^)]*\)|[@%=~]|\d")
+_NON_LEXICAL_ANNOTATION_RE = re.compile(r"<[^>]*>|\([^)]*\)")
+_TRANSCRIPTION_MARK_RE = re.compile(r"[@%=~]|\d")
+_EMBEDDED_ROW_MARKER_RE = re.compile(r"\\0{6,}\s+0{6,}\s+")
+_EMBEDDED_SPEAKER_FIRST_RE = re.compile(
+    r"^(?P<speaker>[^\s:]+):\s+(?P<start>[-+]?\d+(?:\.\d+)?)\s+"
+    r"(?P<end>[-+]?\d+(?:\.\d+)?)(?P<tail>.*)$"
+)
 _SPACE_RE = re.compile(r"\s+")
 _NUMBER_PREFIX_RE = re.compile(r"^[-+]?(?:\d+(?:\.\d*)?|\.\d+)")
 
 
 def clean_transcript_text(text: str) -> str:
+    # SBCSAE square brackets delimit overlapping speech; their contents are
+    # lexical evidence (for example, ``[Mhm]``) and must not be deleted.
+    text = text.replace("[", " ").replace("]", " ")
     text = text.replace("--", " ").replace("=", " ")
-    text = _ANNOTATION_RE.sub(" ", text.lower())
+    text = _NON_LEXICAL_ANNOTATION_RE.sub(" ", text.lower())
+    text = _TRANSCRIPTION_MARK_RE.sub(" ", text)
     text = re.sub(r"[^a-z'\s-]", " ", text)
     return _SPACE_RE.sub(" ", text).strip(" .,-")
 
@@ -46,7 +56,29 @@ def parse_trn(
     """
     utterances: list[Utterance] = []
     current_speaker = ""
-    for line_number, raw_line in enumerate(Path(path).read_text(encoding="utf-8", errors="replace").splitlines(), 1):
+    physical_lines = Path(path).read_text(encoding="utf-8", errors="replace").splitlines()
+    logical_lines: list[tuple[int, str]] = []
+    for line_number, raw_line in enumerate(physical_lines, 1):
+        fragments = _EMBEDDED_ROW_MARKER_RE.split(raw_line)
+        logical_lines.append((line_number, fragments[0]))
+        for fragment in fragments[1:]:
+            recovered = fragment
+            speaker_first = _EMBEDDED_SPEAKER_FIRST_RE.match(fragment.strip())
+            if speaker_first:
+                recovered = (
+                    f"{speaker_first.group('start')} {speaker_first.group('end')}\t"
+                    f"{speaker_first.group('speaker')}:\t{speaker_first.group('tail').strip()}"
+                )
+            logical_lines.append((line_number, recovered))
+            if diagnostics is not None:
+                diagnostics.append(
+                    {
+                        "line_number": line_number,
+                        "reason": "recovered_embedded_row",
+                        "raw": fragment,
+                    }
+                )
+    for line_number, raw_line in logical_lines:
         if not raw_line.strip():
             continue
         parts = raw_line.split("\t")
@@ -188,7 +220,13 @@ def _previous_floor(utterances: Sequence[Utterance], time_s: float) -> str | Non
     ]
     if not candidates:
         return None
-    return max(candidates, key=lambda item: min(item.end_s, time_s)).speaker
+    # If several non-backchannel units are still active, treat the one that
+    # established the floor first as the holder.  The old single-key max made
+    # this depend on arbitrary input row order.
+    return max(
+        candidates,
+        key=lambda item: (min(item.end_s, time_s), -item.start_s, -item.end_s),
+    ).speaker
 
 
 def transcript_prefix(utterances: Sequence[Utterance], start_s: float, end_s: float) -> str:

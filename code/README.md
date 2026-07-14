@@ -189,17 +189,17 @@ python scripts/run_prompt_baseline.py prepare `
 
 ## 音频 + 因果转写 + Profile MLLM 低成本验证
 
-更接近当前研究问题的 prompt 实验使用现成音频 MLLM，每个请求同时输入 `[t-30s, t]` 单声道 WAV、截止 `t` 已完成的部分转写和 fixed-template 自然语言 profile，输出未来 40 ms 的五分类。每个样本做 `hidden / given / shuffled` 三条件对照；自动审计保证三次请求的音频、转写、预测边界和任务提示完全相同，只改变 profile：
+更接近当前研究问题的 prompt 实验使用现成音频 MLLM，每个请求同时输入 `[t-30s, t]` 单声道 WAV、截止 `t` 已完成的转写单元和 fixed-template 自然语言 profile，输出未来 40 ms 的五分类状态。每个样本做 `hidden / given / shuffled` 三条件对照；自动审计保证三次请求的音频、转写、预测边界和任务提示完全相同，只改变 profile：
 
 ```powershell
 python scripts/run_mllm_prompt_baseline.py prepare `
-  --manifest ../data/processed/sbcsae_mvp/manifest.jsonl `
-  --output-dir ../artifacts/mllm-prompt-baseline/qwen2.5-omni-3b/audio-transcript-profile-test-100-per-class `
-  --split test `
+  --manifest ../data/processed/sbcsae_mvp_v2/event_manifest.jsonl `
+  --output-dir ../artifacts/mllm-prompt-baseline/qwen2.5-omni-3b/v2-event-500-review-required `
+  --split all `
   --max-per-class 100
 ```
 
-完整的模型服务、审计、断点续跑和评分命令见 [docs/MLLM_PROMPT_BASELINE.md](docs/MLLM_PROMPT_BASELINE.md)。本机 Qwen2.5-Omni-3B Q4 的 500 条平衡测试结果见 [reports/MLLM_PROMPT_QWEN2_5_OMNI_3B_REPORT.md](reports/MLLM_PROMPT_QWEN2_5_OMNI_3B_REPORT.md)：1,500/1,500 请求有效，`given` accuracy 比 `hidden` 高 0.8 个百分点，但 Macro-F1 更低、配对检验不显著，而且 hidden 有 89% 输出为 `I`。因此该 checkpoint 没有提供可信的正向 profile 证据。
+完整的模型服务、审计、断点续跑和评分命令见 [docs/MLLM_PROMPT_BASELINE.md](docs/MLLM_PROMPT_BASELINE.md)。此前 Qwen2.5-Omni-3B Q4 的 500 条运行在复核后发现系统性弱标签、重复事件抽样和提示语义问题，已经在 [reports/MLLM_PROMPT_QWEN2_5_OMNI_3B_REPORT.md](reports/MLLM_PROMPT_QWEN2_5_OMNI_3B_REPORT.md) 中明确标记为无效，不能作为正向或负向结论。新的 v2 流程先从 16 个会话各事件只取一个代表帧，并要求人工复核后才允许正式评分。
 
 ## 查看一条真实数据和训练输出
 

@@ -112,9 +112,17 @@ Speaker A 是该会话中第一个实际出现的人类，Speaker B 是另一个
   "start_s": 100.0,
   "end_s": 100.24,
   "label": "BC",
-  "source": "automatic_weak_label_from_trn_timestamps_v1",
+  "source": "automatic_weak_chunk_state_from_trn_timestamps_v2",
   "gold_label": false
 }
 ```
 
 它可用于人工抽样和开发 event-level 评测，但仍不是人工 gold。
+
+## `event_manifest.jsonl`
+
+每个 `weak_events.jsonl` 事件只保留一个接近中点、且确实位于原 40 ms
+时间网格上的代表帧，并增加 `weak_event_id`、`weak_event_start_s`、
+`weak_event_end_s` 和 `event_representative=true`。低成本 prompt 验证从这个
+文件抽样，避免把同一段连续 BC/I/NA 当成多条独立测试数据。自动标签完成
+人工复核前，`gold_label` 仍为 `false`。

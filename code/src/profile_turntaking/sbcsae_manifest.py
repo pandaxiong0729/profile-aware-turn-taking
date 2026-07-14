@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import heapq
 import random
 from collections import Counter, defaultdict
 from dataclasses import dataclass
@@ -10,7 +11,7 @@ from pathlib import Path
 from typing import Any, Iterator, Sequence
 
 from .constants import LABELS
-from .data import is_backchannel
+from .data import clean_transcript_text, is_backchannel
 from .schemas import Utterance
 from .utils import read_jsonl, write_json, write_jsonl
 
@@ -30,15 +31,53 @@ class MonotonicWeakLabeler:
         self.utterances = sorted(utterances, key=lambda row: (row.start_s, row.end_s))
         self.horizon_s = horizon_ms / 1000.0
         self.backchannels = [is_backchannel(row) for row in self.utterances]
-        self.previous_speaker: list[str | None] = []
-        previous: str | None = None
-        for row, backchannel in zip(self.utterances, self.backchannels):
-            self.previous_speaker.append(previous)
-            if not backchannel:
-                previous = row.speaker
+        self.previous_speaker = self._previous_floor_speakers()
         self.next_start = 0
         self.active: list[int] = []
         self.last_time = float("-inf")
+
+    def _previous_floor_speakers(self) -> list[str | None]:
+        """Match data._previous_floor at every utterance onset in O(n log n)."""
+
+        result: list[str | None] = [None] * len(self.utterances)
+        active_by_index: list[int] = []
+        latest_by_end: list[tuple[float, int]] = []
+        group_start = 0
+        while group_start < len(self.utterances):
+            time_s = self.utterances[group_start].start_s
+            group_end = group_start + 1
+            while (
+                group_end < len(self.utterances)
+                and self.utterances[group_end].start_s == time_s
+            ):
+                group_end += 1
+            while (
+                active_by_index
+                and self.utterances[active_by_index[0]].end_s < time_s
+            ):
+                heapq.heappop(active_by_index)
+            previous_index = (
+                active_by_index[0]
+                if active_by_index
+                else latest_by_end[0][1]
+                if latest_by_end
+                else None
+            )
+            previous = (
+                self.utterances[previous_index].speaker
+                if previous_index is not None
+                else None
+            )
+            for index in range(group_start, group_end):
+                result[index] = previous
+            for index in range(group_start, group_end):
+                if not self.backchannels[index]:
+                    heapq.heappush(active_by_index, index)
+                    heapq.heappush(
+                        latest_by_end, (-self.utterances[index].end_s, index)
+                    )
+            group_start = group_end
+        return result
 
     def label(self, prediction_time_s: float) -> str:
         if prediction_time_s < self.last_time:
@@ -59,15 +98,21 @@ class MonotonicWeakLabeler:
             previous = self.previous_speaker[index]
             if self.backchannels[index] and previous and previous != row.speaker:
                 return "BC"
-        active_non_backchannel = {
-            self.utterances[index].speaker
-            for index in self.active
-            if not self.backchannels[index]
-            and self.utterances[index].start_s < horizon_end
-            and self.utterances[index].end_s > prediction_time_s
-        }
-        if len(active_non_backchannel) >= 2:
-            return "I"
+        # Two utterances may both intersect the 40 ms chunk without
+        # intersecting each other (A ends, then B starts).  That is a turn
+        # transition, not overlapping speech.  Require true pairwise overlap.
+        for position, first_index in enumerate(self.active):
+            first = self.utterances[first_index]
+            for second_index in self.active[position + 1 :]:
+                second = self.utterances[second_index]
+                if first.speaker == second.speaker:
+                    continue
+                overlap_start = max(
+                    prediction_time_s, first.start_s, second.start_s
+                )
+                overlap_end = min(horizon_end, first.end_s, second.end_s)
+                if overlap_start < overlap_end:
+                    return "I"
         for index in self.active:
             row = self.utterances[index]
             previous = self.previous_speaker[index]
@@ -162,7 +207,8 @@ def _transcript_prefix(
     utterances: Sequence[Utterance], start_s: float, end_s: float
 ) -> str:
     lines = [
-        f"[{row.speaker} {row.start_s:.2f}-{row.end_s:.2f}] {row.text.strip()}"
+        f"[{row.speaker} {row.start_s:.2f}-{row.end_s:.2f}] "
+        f"{clean_transcript_text(row.text)}"
         for row in utterances
         if row.end_s <= end_s + 1e-9 and row.end_s >= start_s
     ]
@@ -208,13 +254,23 @@ def _sample_row(
         "transcript_prefix": _transcript_prefix(
             utterances, prediction_time - context_seconds, prediction_time
         ),
-        "text_source": "manual_trn_causal_proxy_not_streaming_asr",
+        "text_source": "manual_trn_completed_units_not_streaming_asr",
         "profile": copy.deepcopy(profile),
         "profile_provenance": copy.deepcopy(provenance),
         "label": candidate.label,
-        "label_source": "automatic_weak_label_from_trn_timestamps_v1",
+        "label_source": "automatic_weak_chunk_state_from_trn_timestamps_v2",
         "gold_label": False,
     }
+
+
+def _event_representative_time(
+    event: dict[str, Any], *, frame_stride_ms: int
+) -> float:
+    """Choose one observed grid frame near an event's midpoint."""
+
+    step = frame_stride_ms / 1000.0
+    frame_count = max(1, int(round((event["end_s"] - event["start_s"]) / step)))
+    return round(event["start_s"] + ((frame_count - 1) // 2) * step, 6)
 
 
 def prepare_sbcsae_manifests(
@@ -311,7 +367,7 @@ def prepare_sbcsae_manifests(
                         "start_s": event_start,
                         "end_s": time_s,
                         "label": event_label,
-                        "source": "automatic_weak_label_from_trn_timestamps_v1",
+                        "source": "automatic_weak_chunk_state_from_trn_timestamps_v2",
                         "gold_label": False,
                     }
                 )
@@ -326,7 +382,7 @@ def prepare_sbcsae_manifests(
                     "start_s": event_start,
                     "end_s": last_time + frame_stride_ms / 1000.0,
                     "label": event_label,
-                    "source": "automatic_weak_label_from_trn_timestamps_v1",
+                    "source": "automatic_weak_chunk_state_from_trn_timestamps_v2",
                     "gold_label": False,
                 }
             )
@@ -362,6 +418,35 @@ def prepare_sbcsae_manifests(
     rng.shuffle(manifest_rows)
     write_jsonl(destination / "manifest.jsonl", manifest_rows)
     write_jsonl(destination / "weak_events.jsonl", weak_events)
+    event_manifest_rows: list[dict[str, Any]] = []
+    for event_index, event in enumerate(weak_events):
+        conversation = conversation_by_id[event["conversation_id"]]
+        rows, profile, provenance = prepared[event["conversation_id"]]
+        candidate = Candidate(
+            event["conversation_id"],
+            event["split"],
+            _event_representative_time(event, frame_stride_ms=frame_stride_ms),
+            event["label"],
+        )
+        row = _sample_row(
+            candidate,
+            conversation=conversation,
+            utterances=rows,
+            profile=profile,
+            provenance=provenance,
+            context_seconds=context_seconds,
+            horizon_ms=horizon_ms,
+        )
+        row.update(
+            {
+                "weak_event_id": f"{event['conversation_id']}-event-{event_index:06d}",
+                "weak_event_start_s": event["start_s"],
+                "weak_event_end_s": event["end_s"],
+                "event_representative": True,
+            }
+        )
+        event_manifest_rows.append(row)
+    write_jsonl(destination / "event_manifest.jsonl", event_manifest_rows)
     write_json(
         destination / "split_map.json",
         {
@@ -399,6 +484,16 @@ def prepare_sbcsae_manifests(
         },
         "selected_samples": len(manifest_rows),
         "weak_events": len(weak_events),
+        "event_manifest_counts": {
+            split: {
+                label: sum(
+                    row["split"] == split and row["label"] == label
+                    for row in event_manifest_rows
+                )
+                for label in LABELS
+            }
+            for split in ("train", "val", "test")
+        },
         "profile_conditions_supported": ["given", "hidden", "shuffled"],
         "audio_channel_policy": "mean_stereo_channels_at_load_time",
         "known_limitations": [
@@ -411,6 +506,7 @@ def prepare_sbcsae_manifests(
         "outputs": {
             "manifest": str((destination / "manifest.jsonl").resolve()),
             "weak_events": str((destination / "weak_events.jsonl").resolve()),
+            "event_manifest": str((destination / "event_manifest.jsonl").resolve()),
             "split_map": str((destination / "split_map.json").resolve()),
         },
     }

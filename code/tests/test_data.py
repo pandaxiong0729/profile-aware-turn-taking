@@ -8,6 +8,8 @@ from profile_turntaking.constants import PROFILE_FIELDS, UNKNOWN_PROFILE
 from profile_turntaking.data import (
     assign_splits,
     canonicalize_speakers,
+    clean_transcript_text,
+    is_backchannel,
     label_at,
     parse_trn,
     transcript_prefix,
@@ -77,6 +79,27 @@ def test_parse_non_strict_records_bad_interval(tmp_path: Path) -> None:
     assert diagnostics[0]["reason"] == "non_positive_interval"
 
 
+def test_parse_recovers_embedded_trn_row(tmp_path: Path) -> None:
+    path = tmp_path / "embedded.trn"
+    path.write_text(
+        "1.0 2.0\tALICE:\tFirst.\\000000000 000000000 BOB: 2.0 3.0\tSecond.\n",
+        encoding="utf-8",
+    )
+    diagnostics: list[dict[str, object]] = []
+    rows = parse_trn(path, diagnostics=diagnostics)
+    assert [(row.start_s, row.end_s, row.speaker, row.text) for row in rows] == [
+        (1.0, 2.0, "ALICE", "First."),
+        (2.0, 3.0, "BOB", "Second."),
+    ]
+    assert diagnostics[0]["reason"] == "recovered_embedded_row"
+
+
+def test_overlap_brackets_preserve_backchannel_words() -> None:
+    row = Utterance(1.0, 1.3, "speaker_B", "[Mhm]")
+    assert clean_transcript_text(row.text) == "mhm"
+    assert is_backchannel(row)
+
+
 def test_parse_shifted_timestamp_and_blank_speaker_marker(tmp_path: Path) -> None:
     path = tmp_path / "shifted.trn"
     path.write_text(
@@ -103,6 +126,14 @@ def test_five_class_label_rules() -> None:
     assert label_at(rows, 2.1) == "NA"
     assert label_at(rows, 2.4) == "T"
     assert label_at(rows, 3.1) == "I"
+
+
+def test_sequential_turns_inside_one_chunk_are_not_interruption() -> None:
+    rows = [
+        Utterance(0.0, 1.01, "speaker_A", "ending"),
+        Utterance(1.02, 2.0, "speaker_B", "starting"),
+    ]
+    assert label_at(rows, 1.0) == "T"
 
 
 def test_transcript_prefix_excludes_partial_future_text() -> None:
