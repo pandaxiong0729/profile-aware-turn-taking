@@ -1,0 +1,6 @@
+task	hidden	given	shuffled	given-hidden	given-shuffled
+turn_change	0.7515	0.7531	0.7523	+0.0015	+0.0008
+backchannel	0.7684	0.7632	0.7615	-0.0051	+0.0017
+interruption	0.8699	0.8645	0.8645	-0.0054	+0.0000
+floor_taking	0.5500	0.5441	0.5588	-0.0059	-0.0147
+overall	0.7350	0.7312	0.7343	-0.0037	-0.0031

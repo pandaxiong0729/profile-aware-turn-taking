@@ -61,6 +61,118 @@ def read_wav_window(
     return decoded[:wanted].astype(np.float32, copy=False)
 
 
+def read_wav_window_robust_mix(
+    path: str | Path,
+    start_s: float,
+    end_s: float,
+    *,
+    target_rate: int = 16_000,
+) -> np.ndarray:
+    """Read a window and downmix channels without destructive polarity loss.
+
+    Some conversational recordings contain correlated microphone channels with
+    opposite polarity or very different levels.  A plain arithmetic mean can
+    nearly erase quiet speech.  This mixer polarity-aligns strongly inverted
+    channels and restores the mixed RMS up to the loudest input channel while
+    keeping every physical channel in the result.
+    """
+    if end_s <= start_s:
+        raise ValueError("end_s must be greater than start_s")
+    with wave.open(str(path), "rb") as wav:
+        source_rate = wav.getframerate()
+        channels = wav.getnchannels()
+        sample_width = wav.getsampwidth()
+        start_frame = max(0, int(math.floor(start_s * source_rate)))
+        end_frame = max(start_frame, int(math.ceil(end_s * source_rate)))
+        available = wav.getnframes()
+        wav.setpos(min(start_frame, available))
+        frames = wav.readframes(max(0, min(end_frame, available) - start_frame))
+    decoded = _decode_pcm(frames, sample_width)
+    if decoded.size:
+        decoded = decoded.reshape(-1, channels).T
+    else:
+        decoded = np.zeros((channels, 0), dtype=np.float32)
+    wanted = int(round((end_s - start_s) * target_rate))
+    resampled: list[np.ndarray] = []
+    for channel in decoded:
+        values = _resample_linear(channel, source_rate, target_rate)
+        if values.size < wanted:
+            values = np.pad(values, (0, wanted - values.size))
+        resampled.append(values[:wanted])
+    channel_audio = np.stack(resampled).astype(np.float32, copy=False)
+    if channels == 1:
+        return channel_audio[0]
+
+    rms = np.sqrt(np.mean(channel_audio * channel_audio, axis=1) + 1e-12)
+    reference_index = int(np.argmax(rms))
+    reference = channel_audio[reference_index]
+    reference_norm = float(np.linalg.norm(reference))
+    aligned = channel_audio.copy()
+    for index, channel in enumerate(aligned):
+        if index == reference_index:
+            continue
+        denominator = reference_norm * float(np.linalg.norm(channel))
+        cosine = float(np.dot(reference, channel) / denominator) if denominator else 0.0
+        if cosine < -0.1:
+            aligned[index] *= -1.0
+
+    mixed = np.mean(aligned, axis=0)
+    mixed_rms = float(np.sqrt(np.mean(mixed * mixed) + 1e-12))
+    target_rms = float(np.max(rms))
+    if mixed_rms > 0.0 and target_rms > mixed_rms:
+        mixed *= min(target_rms / mixed_rms, 4.0)
+    peak = float(np.max(np.abs(mixed))) if mixed.size else 0.0
+    if peak > 0.98:
+        mixed *= 0.98 / peak
+    return mixed.astype(np.float32, copy=False)
+
+
+def read_wav_channels(
+    path: str | Path,
+    *,
+    target_rate: int = 16_000,
+) -> np.ndarray:
+    """Read an entire PCM WAV as ``[channels, samples]`` float32 audio.
+
+    Keeping physical channels separate lets the VAD pipeline measure agreement
+    between the two SBCSAE channels instead of silently averaging them first.
+    """
+    with wave.open(str(path), "rb") as wav:
+        source_rate = wav.getframerate()
+        channels = wav.getnchannels()
+        sample_width = wav.getsampwidth()
+        decoded = _decode_pcm(wav.readframes(wav.getnframes()), sample_width)
+    if decoded.size == 0:
+        return np.zeros((channels, 0), dtype=np.float32)
+    decoded = decoded.reshape(-1, channels).T
+    resampled = [
+        _resample_linear(channel, source_rate, target_rate) for channel in decoded
+    ]
+    wanted = min(channel.size for channel in resampled)
+    return np.stack([channel[:wanted] for channel in resampled]).astype(
+        np.float32, copy=False
+    )
+
+
+def write_wav_mono(
+    path: str | Path,
+    samples: np.ndarray,
+    *,
+    sample_rate: int = 16_000,
+) -> Path:
+    """Write normalized float audio as a mono 16-bit PCM WAV."""
+    destination = Path(path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    audio = np.clip(np.asarray(samples, dtype=np.float32), -1.0, 1.0)
+    pcm = np.round(audio * 32767.0).astype("<i2")
+    with wave.open(str(destination), "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(sample_rate)
+        wav.writeframes(pcm.tobytes())
+    return destination
+
+
 def statistical_audio_features(samples: np.ndarray, *, bands: int = 16) -> np.ndarray:
     """Extract a small deterministic feature vector for CPU smoke training."""
     x = np.asarray(samples, dtype=np.float32)

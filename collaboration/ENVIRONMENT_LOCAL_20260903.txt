@@ -1,0 +1,23 @@
+Local reference environment captured on 2026-09-03 (Asia/Shanghai)
+
+OS: Microsoft Windows 11 Home Chinese, 64-bit, build 10.0.26200
+CPU: Intel(R) Core(TM) Ultra 9 285H, 16 cores / 16 logical processors
+RAM: 31.4 GiB
+GPU: NVIDIA GeForce RTX 5060 Laptop GPU, 8151 MiB VRAM
+NVIDIA driver: 573.01
+
+Python 3.12.13
+torch==2.11.0+cu128
+numpy==2.5.1
+scikit-learn==1.9.0
+transformers==5.15.0
+accelerate==1.14.0
+qwen-omni-utils==0.0.9
+librosa==1.0.0
+sentence-transformers==5.7.0
+safetensors==0.8.0
+onnxruntime==1.27.0
+silero-vad==6.2.1
+pytest==9.1.1
+
+The cloud host does not need to reproduce Windows exactly. Use Python 3.12 and a CUDA-compatible PyTorch build. Cache-only adapter training does not load Qwen weights.

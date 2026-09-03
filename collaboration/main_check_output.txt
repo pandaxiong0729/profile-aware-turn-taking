@@ -1,0 +1,198 @@
+{
+  "verified": true,
+  "scope": {
+    "event_labels": "data\\processed\\sbcsae_turn_events_v3",
+    "main_experiment_labels": "data\\processed\\sbcsae_qwen_shared_ab_30s_causal_v1",
+    "dense_40ms_labels": "data\\processed\\sbcsae_vad_fiveclass_v2"
+  },
+  "checks": {
+    "event_ids_unique": true,
+    "one_event_per_millisecond_per_conversation": true,
+    "event_evidence_matches_fiveclass_rules": true,
+    "main_experiment_references_match_event_source": true,
+    "main_experiment_sample_ids_unique": true,
+    "conversation_splits_disjoint": true,
+    "all_five_labels_present_in_every_split": true,
+    "dense_40ms_package_structurally_verified": true,
+    "dense_rule_version_matches_summary": true
+  },
+  "event_dataset": {
+    "events": 16144,
+    "labels": {
+      "C": 4931,
+      "BC": 1302,
+      "T": 2525,
+      "I": 1301,
+      "NA": 6085
+    },
+    "structures": {
+      "backchannel_candidate": 1302,
+      "hold_after_pause": 4475,
+      "hold_after_unsuccessful_interruption": 456,
+      "interruption_candidate": 1301,
+      "mutual_silence_onset": 6085,
+      "natural_turn_shift": 1715,
+      "shift_after_successful_interruption": 810
+    },
+    "duplicate_anchor_count": 0,
+    "rule_error_counts": {},
+    "rule_error_examples": {}
+  },
+  "main_experiment": {
+    "samples": 10804,
+    "splits": {
+      "train": {
+        "rows": 6623,
+        "labels": {
+          "C": 2474,
+          "BC": 455,
+          "T": 891,
+          "I": 424,
+          "NA": 2379
+        },
+        "conversations": [
+          "SBC005",
+          "SBC006",
+          "SBC009",
+          "SBC010",
+          "SBC024",
+          "SBC041",
+          "SBC044",
+          "SBC045",
+          "SBC047",
+          "SBC060"
+        ]
+      },
+      "val": {
+        "rows": 2243,
+        "labels": {
+          "C": 788,
+          "BC": 158,
+          "T": 365,
+          "I": 112,
+          "NA": 820
+        },
+        "conversations": [
+          "SBC029",
+          "SBC034",
+          "SBC043"
+        ]
+      },
+      "test": {
+        "rows": 1938,
+        "labels": {
+          "C": 733,
+          "BC": 117,
+          "T": 260,
+          "I": 93,
+          "NA": 735
+        },
+        "conversations": [
+          "SBC007",
+          "SBC017",
+          "SBC058"
+        ]
+      }
+    },
+    "reference_mismatches": 0,
+    "split_conversation_overlap": {
+      "train_val": [],
+      "train_test": [],
+      "val_test": []
+    }
+  },
+  "dense_40ms_dataset": {
+    "frames": 578686,
+    "labels": {
+      "C": 346016,
+      "BC": 14041,
+      "T": 1358,
+      "I": 26188,
+      "NA": 191083
+    },
+    "verification_file_passed": true
+  },
+  "interpretation": "The stored labels are internally consistent with the declared VAD/IPU rules and the main experiment references the same event records. This proves deterministic rule consistency, not independent human semantic agreement."
+}
+{
+  "passed": true,
+  "missing_files": [],
+  "paired_input_audit": {
+    "splits": {
+      "train": {
+        "passed": true,
+        "samples": 6623,
+        "class_counts": {
+          "NA": 2379,
+          "C": 2474,
+          "I": 424,
+          "T": 891,
+          "BC": 455
+        },
+        "mode_group_errors": 0,
+        "non_profile_difference_fields": {},
+        "target_leakage_rows": 0,
+        "future_transcript_units": 0,
+        "conversations": [
+          "SBC005",
+          "SBC006",
+          "SBC009",
+          "SBC010",
+          "SBC024",
+          "SBC041",
+          "SBC044",
+          "SBC045",
+          "SBC047",
+          "SBC060"
+        ]
+      },
+      "val": {
+        "passed": true,
+        "samples": 2243,
+        "class_counts": {
+          "C": 788,
+          "NA": 820,
+          "T": 365,
+          "BC": 158,
+          "I": 112
+        },
+        "mode_group_errors": 0,
+        "non_profile_difference_fields": {},
+        "target_leakage_rows": 0,
+        "future_transcript_units": 0,
+        "conversations": [
+          "SBC029",
+          "SBC034",
+          "SBC043"
+        ]
+      },
+      "test": {
+        "passed": true,
+        "samples": 1938,
+        "class_counts": {
+          "C": 733,
+          "BC": 117,
+          "T": 260,
+          "NA": 735,
+          "I": 93
+        },
+        "mode_group_errors": 0,
+        "non_profile_difference_fields": {},
+        "target_leakage_rows": 0,
+        "future_transcript_units": 0,
+        "conversations": [
+          "SBC007",
+          "SBC017",
+          "SBC058"
+        ]
+      }
+    },
+    "conversation_overlap": {
+      "train_val": [],
+      "train_test": [],
+      "val_test": []
+    },
+    "passed": true
+  },
+  "fiveclass_label_audit_passed": true
+}

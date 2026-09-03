@@ -6,9 +6,11 @@ __pycache__/
 .coverage
 
 # Generated experiment outputs and downloaded audio
-artifacts/
+/artifacts/*
+!/artifacts/README.md
 reports/generated/
-/data/
+/data/*
+!/data/README.md
 data/processed/
 data/sbcsae/audio/
 data/sbcsae/**/*.wav
@@ -22,7 +24,12 @@ data/sbcsae/metadata/
 data/pachat/
 data/processed/
 tmp/pdfs/
-models/
+/models/*
+!/models/README.md
+
+# Local runtime history is not part of the research repository.
+/history/
+/code/history/artifacts/
 
 # Local learning logs are environment-specific.
 .learnings/

@@ -1,0 +1,100 @@
+{
+  "protocol_version": "qwen25_omni_profile_pilot_v11_causal_asr",
+  "prompt_version": "event_first_audio_transcript_profile_v11_causal_asr",
+  "model": "Qwen2.5-Omni-3B-Q8_0",
+  "profile_modes": [
+    "hidden",
+    "given",
+    "shuffled"
+  ],
+  "development_conversations": [
+    "SBC005",
+    "SBC010",
+    "SBC041",
+    "SBC047"
+  ],
+  "evaluation_conversations": [
+    "SBC006",
+    "SBC007",
+    "SBC009",
+    "SBC017",
+    "SBC024",
+    "SBC029",
+    "SBC034",
+    "SBC043",
+    "SBC044",
+    "SBC045",
+    "SBC058",
+    "SBC060"
+  ],
+  "phases": {
+    "micro": {
+      "conversations": [
+        "SBC005",
+        "SBC010",
+        "SBC041",
+        "SBC047"
+      ],
+      "per_class": 2,
+      "seed": 113,
+      "context_seconds": 12.0,
+      "max_transcript_chars": 6000,
+      "min_boundary_separation_s": 3.0,
+      "max_per_conversation_class": 2,
+      "sample_rate": 16000,
+      "forecast_lead_ms": 100,
+      "forecast_horizon_ms": 600
+    },
+    "gate50": {
+      "conversations": [
+        "SBC005",
+        "SBC010",
+        "SBC041",
+        "SBC047"
+      ],
+      "per_class": 10,
+      "seed": 137,
+      "context_seconds": 12.0,
+      "max_transcript_chars": 6000,
+      "min_boundary_separation_s": 3.0,
+      "max_per_conversation_class": 4,
+      "sample_rate": 16000,
+      "forecast_lead_ms": 100,
+      "forecast_horizon_ms": 600
+    },
+    "formal500": {
+      "conversations": [
+        "SBC006",
+        "SBC007",
+        "SBC009",
+        "SBC017",
+        "SBC024",
+        "SBC029",
+        "SBC034",
+        "SBC043",
+        "SBC044",
+        "SBC045",
+        "SBC058",
+        "SBC060"
+      ],
+      "per_class": 100,
+      "seed": 171,
+      "context_seconds": 12.0,
+      "max_transcript_chars": 6000,
+      "min_boundary_separation_s": 3.0,
+      "max_per_conversation_class": 10,
+      "sample_rate": 16000,
+      "forecast_lead_ms": 100,
+      "forecast_horizon_ms": 600
+    }
+  },
+  "freeze_rule": "Only micro and gate50 may be used to diagnose or revise prompts. formal500 is prepared and run only after the gate protocol is frozen.",
+  "collapse_gate": {
+    "minimum_hidden_distinct_labels": 3,
+    "maximum_hidden_dominant_fraction": 0.8,
+    "require_complete_valid_outputs": true,
+    "require_audio_sensitivity_control": true,
+    "minimum_audio_change_fraction": 0.2,
+    "minimum_audio_control_samples": 50
+  }
+}

@@ -1,0 +1,82 @@
+{
+  "passed": true,
+  "missing_files": [],
+  "paired_input_audit": {
+    "splits": {
+      "train": {
+        "passed": true,
+        "samples": 6623,
+        "class_counts": {
+          "NA": 2379,
+          "C": 2474,
+          "I": 424,
+          "T": 891,
+          "BC": 455
+        },
+        "mode_group_errors": 0,
+        "non_profile_difference_fields": {},
+        "target_leakage_rows": 0,
+        "future_transcript_units": 0,
+        "conversations": [
+          "SBC005",
+          "SBC006",
+          "SBC009",
+          "SBC010",
+          "SBC024",
+          "SBC041",
+          "SBC044",
+          "SBC045",
+          "SBC047",
+          "SBC060"
+        ]
+      },
+      "val": {
+        "passed": true,
+        "samples": 2243,
+        "class_counts": {
+          "C": 788,
+          "NA": 820,
+          "T": 365,
+          "BC": 158,
+          "I": 112
+        },
+        "mode_group_errors": 0,
+        "non_profile_difference_fields": {},
+        "target_leakage_rows": 0,
+        "future_transcript_units": 0,
+        "conversations": [
+          "SBC029",
+          "SBC034",
+          "SBC043"
+        ]
+      },
+      "test": {
+        "passed": true,
+        "samples": 1938,
+        "class_counts": {
+          "C": 733,
+          "BC": 117,
+          "T": 260,
+          "NA": 735,
+          "I": 93
+        },
+        "mode_group_errors": 0,
+        "non_profile_difference_fields": {},
+        "target_leakage_rows": 0,
+        "future_transcript_units": 0,
+        "conversations": [
+          "SBC007",
+          "SBC017",
+          "SBC058"
+        ]
+      }
+    },
+    "conversation_overlap": {
+      "train_val": [],
+      "train_test": [],
+      "val_test": []
+    },
+    "passed": true
+  },
+  "fiveclass_label_audit_passed": true
+}

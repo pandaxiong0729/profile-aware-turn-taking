@@ -1,0 +1,135 @@
+{
+  "schema_version": "1.0",
+  "protocol_id": "sbcsae-qwen2.5-omni-3b-profile-prompt-pilot-v1",
+  "status": "review_required_do_not_run",
+  "scope": "zero_shot_audio_transcript_natural_language_profile_five_class_pilot",
+  "data": {
+    "catalog_dir": "data/processed/sbcsae_catalog_v2",
+    "event_source_manifest": "data/processed/sbcsae_mvp_v2/event_onset_manifest.jsonl",
+    "candidate_manifest": "data/processed/sbcsae_mvp_v2/prompt_review_balanced_500.jsonl",
+    "candidate_run_dir": "artifacts/mllm-prompt-baseline/qwen2.5-omni-3b/onset-balanced-500-review-required",
+    "reviewed_manifest": "data/processed/sbcsae_mvp_v2/reviewed_500.jsonl",
+    "selection": {
+      "policy": "conversation_balanced_class_targets_v1",
+      "seed": 13,
+      "samples": 500,
+      "class_targets": {
+        "C": 110,
+        "BC": 110,
+        "T": 110,
+        "I": 110,
+        "NA": 60
+      },
+      "max_per_conversation_class": 10,
+      "min_boundary_separation_s": 5.0,
+      "minimum_conversations_per_class": 8,
+      "maximum_single_conversation_class_share": 0.25
+    }
+  },
+  "model_input": {
+    "audio": {
+      "window": "[max(0,t-30s),t)",
+      "sample_rate_hz": 16000,
+      "channels": 1,
+      "stereo_policy": "mean_channels_at_load_time",
+      "future_audio_allowed": false
+    },
+    "transcript": {
+      "source": "manual_trn_completed_units_not_streaming_asr",
+      "inclusion_rule": "end_s <= t",
+      "speaker_labels": [
+        "speaker_A",
+        "speaker_B"
+      ],
+      "max_chars": 6000,
+      "future_text_allowed": false
+    },
+    "profile": {
+      "representation": "fixed_template_natural_language",
+      "fields": [
+        "speaker_A.age_group",
+        "speaker_A.gender",
+        "speaker_A.social_role",
+        "speaker_A.background",
+        "speaker_B.age_group",
+        "speaker_B.gender",
+        "speaker_B.social_role",
+        "speaker_B.background",
+        "relationship",
+        "situation"
+      ],
+      "conditions": [
+        "hidden",
+        "given",
+        "shuffled"
+      ],
+      "paired_invariant": "only rendered profile content changes within one sample"
+    }
+  },
+  "target": {
+    "horizon_ms": 40,
+    "interval": "[t,t+40ms]",
+    "labels": [
+      "C",
+      "BC",
+      "T",
+      "I",
+      "NA"
+    ],
+    "output": "one strict JSON object with one label key",
+    "probabilities_requested": false
+  },
+  "prompt": {
+    "implementation": "profile_turntaking.mllm_prompt_baseline.build_audio_prompt",
+    "sentinel_sha256": "97edac3af2fc4a67793f7e138d2ff1763b2358338340f2eb51d519ab183041d4",
+    "contains_label_demonstration": false,
+    "contains_future_or_annotation_evidence": false
+  },
+  "model": {
+    "name": "Qwen2.5-Omni-3B",
+    "quantization": "Q4_K_M",
+    "runtime": "llama.cpp server",
+    "checkpoint": "models/huggingface/Qwen2.5-Omni-3B-GGUF/Qwen2.5-Omni-3B-Q4_K_M.gguf",
+    "mmproj": "models/huggingface/Qwen2.5-Omni-3B-GGUF/mmproj-Qwen2.5-Omni-3B-Q8_0.gguf"
+  },
+  "decoding": {
+    "temperature": 0,
+    "seed": 13,
+    "max_tokens": 16,
+    "strict_json_schema": true
+  },
+  "evaluation": {
+    "primary": [
+      "macro_f1",
+      "balanced_accuracy"
+    ],
+    "required": [
+      "per_class_precision_recall_f1_support",
+      "confusion_matrix",
+      "given_minus_hidden_macro_f1",
+      "given_minus_shuffled_macro_f1",
+      "exact_mcnemar_given_vs_hidden",
+      "conversation_cluster_bootstrap_95ci_2000",
+      "output_validity",
+      "latency_mean_median_p95"
+    ],
+    "not_applicable_to_hard_label_pilot": [
+      "roc_auc",
+      "brier_score",
+      "ece",
+      "plus_minus_200ms_event_f1"
+    ]
+  },
+  "run_gates": {
+    "implementation_integrity_passed": true,
+    "selection_distribution_passed": true,
+    "human_reviewed_samples": 500,
+    "weak_label_samples": 0,
+    "request_audit_passed": true,
+    "first_batch_samples": 50,
+    "hidden_minimum_predicted_classes": 3,
+    "hidden_maximum_dominant_class_share": 0.8,
+    "audio_sensitivity_control_required": true,
+    "full_batch_samples": 500
+  }
+}

@@ -1,0 +1,325 @@
+{
+  "schema_version": "1.0",
+  "portable_paths": true,
+  "path_base": "repository root",
+  "main_experiment_can_train_from_cached_features_without_raw_audio_or_qwen_weights": true,
+  "items": [
+    {
+      "path": "code/scripts/run_main_experiment.py",
+      "role": "唯一主实验入口",
+      "exists": true,
+      "bytes": 8567,
+      "sha256": "15d24677525949a892c41501c64cb5dc76631af4c3cb16a59c4d243acd2e95ec"
+    },
+    {
+      "path": "code/scripts/inspect_experiment_data.py",
+      "role": "逐样本输入和预测查看器",
+      "exists": true,
+      "bytes": 7747,
+      "sha256": "20645d595c4eb7158ec62172e050db58bef3964e4bc755b05d14185b1fe8469d"
+    },
+    {
+      "path": "code/scripts/audit_fiveclass_event_labels.py",
+      "role": "五分类标签复核",
+      "exists": true,
+      "bytes": 11809,
+      "sha256": "6c3ae67cd938a03dd651e523374ce17d4714f8588d414a731df783cc50d158b8"
+    },
+    {
+      "path": "code/scripts/run_qwen_shared_binary_multitask_adapter.py",
+      "role": "主模型实现",
+      "exists": true,
+      "bytes": 65259,
+      "sha256": "8eb9595a3d32b09f985c67cfc7466ca26b4816b6d1a82a582f6ffe845016e6f3"
+    },
+    {
+      "path": "code/scripts/build_dynamic_behavior_profile_views.py",
+      "role": "59维动态交互状态构建",
+      "exists": true,
+      "bytes": 25340,
+      "sha256": "7b0c22860168e76bce1ec634188b9307cee3b193abaaab8e21004decacee0c38"
+    },
+    {
+      "path": "code/scripts/run_espnet_talking_turns_baseline.py",
+      "role": "Talking Turns官方checkpoint运行与评分",
+      "exists": true,
+      "bytes": 22804,
+      "sha256": "9d7c56b57e9897f62f5d99a47b1c4623e647f0d10f0c5dd0a459c096700bf4b0"
+    },
+    {
+      "path": "code/src/profile_turntaking/event_annotation.py",
+      "role": "事件与五分类规则",
+      "exists": true,
+      "bytes": 57066,
+      "sha256": "3af7b7eea013b99b19c8b6100955b8baa503d823ea9d54138f73f174b383cc50"
+    },
+    {
+      "path": "code/src/profile_turntaking/paper_aligned_floor_targets.py",
+      "role": "Floor-taking目标",
+      "exists": true,
+      "bytes": 6680,
+      "sha256": "594651707c77329fcf587987d780543c5b26681f0a23740f860a2bd4a9e3d4f2"
+    },
+    {
+      "path": "data/processed/sbcsae_turn_events_v3/event_candidates.jsonl",
+      "role": "完整事件标签源",
+      "exists": true,
+      "bytes": 19580463,
+      "sha256": "9e37bb566bf66507755c4b00b4095a46de99d059cbec3ff6b2c677c3bf438bf2"
+    },
+    {
+      "path": "data/processed/sbcsae_turn_events_v3/ipus.jsonl",
+      "role": "IPU源数据",
+      "exists": true,
+      "bytes": 2732777,
+      "sha256": "9c0882debed391d71c61533221380e0ef4033d5be3954272948b1173b98afdce"
+    },
+    {
+      "path": "data/processed/sbcsae_qwen_shared_ab_30s_causal_v1/summary.json",
+      "role": "主实验数据统计",
+      "exists": true,
+      "bytes": 5694,
+      "sha256": "a9c7f6778a6598d38987ce74cc2b1ad1804e6f24a1a322266a4dddbfc27c3d5c"
+    },
+    {
+      "path": "artifacts/main_experiment/profile_features/metadata.json",
+      "role": "profile字段定义",
+      "exists": true,
+      "bytes": 7706,
+      "sha256": "598646e0b99240f0481e9760eea0af2d6c47127433aa52986acc2287e8b1454c"
+    },
+    {
+      "path": "artifacts/main_experiment/results/summary.json",
+      "role": "主实验汇总结果",
+      "exists": true,
+      "bytes": 27653,
+      "sha256": "7a6478b20a67e43a16f962e120a1ec3ed167604fac257498dffc8f957628c814"
+    },
+    {
+      "path": "artifacts/main_experiment/results/test_predictions.jsonl",
+      "role": "逐样本测试预测",
+      "exists": true,
+      "bytes": 12399629,
+      "sha256": "a7ec3295fce7571f968bd04259c87b030b7faebf8c41b991ba9de9c15d4ea75e"
+    },
+    {
+      "path": "artifacts/main_experiment/rerun/summary.json",
+      "role": "整理后完整重训验证",
+      "exists": true,
+      "bytes": 28012,
+      "sha256": "d54764ca14cde79a89aa6f9f3df739c4b97ab1f5d44fbad49163dab6770d3b69"
+    },
+    {
+      "path": "artifacts/talking_turns/sbcsae_test/metrics.json",
+      "role": "Talking Turns在SBCSAE上的指标",
+      "exists": true,
+      "bytes": 3784,
+      "sha256": "b3868492aaba721b6a07216aff6f0def2496bd2bf28eb4116a1f2c039e89a7ee"
+    },
+    {
+      "path": "artifacts/talking_turns/sbcsae_test/test_predictions.jsonl",
+      "role": "Talking Turns逐样本五分类预测",
+      "exists": true,
+      "bytes": 983712,
+      "sha256": "29245b8f892722af5d152eb6020b4394cb420240f27be9f00f85cbef5ae23e65"
+    },
+    {
+      "path": "models/talking_turns/checkpoint/exp/asr_train_asr_whisper_turn_taking_raw_en_word/config.yaml",
+      "role": "Talking Turns官方配置",
+      "exists": true,
+      "bytes": 4211,
+      "sha256": "0058110ed9d1a91d9860560f1539344e90b1c02f8b12efdbc17c0b744b85c864"
+    },
+    {
+      "path": "models/talking_turns/checkpoint/exp/asr_train_asr_whisper_turn_taking_raw_en_word/valid.loss.ave.pth",
+      "role": "Talking Turns官方checkpoint",
+      "exists": true,
+      "bytes": 1233224014,
+      "sha256": "62c6cf9a1db90bf0f8c43c51cdace3b5bcb4ae42275a038fbbf2e3d3545864f5"
+    },
+    {
+      "path": "collaboration/README.md",
+      "role": "合作者总说明",
+      "exists": true,
+      "bytes": 1132,
+      "sha256": "8eef5ab697ab70d3f4e2654ff643b8a2bf14a868ef64f8b3e7d64e52b623add1"
+    },
+    {
+      "path": "data/processed/sbcsae_qwen_shared_ab_30s_causal_v1/train/reference_labels.jsonl",
+      "role": "train五分类与四任务标签",
+      "exists": true,
+      "bytes": 2880612,
+      "sha256": "822d6c07f5dd30a3acd3e7a4e8c5a29d593b45f09c521352288a17d9f7dab42b"
+    },
+    {
+      "path": "artifacts/main_experiment/qwen_feature_cache/train.qwen-hidden.npz",
+      "role": "train冻结Qwen音频/上下文特征缓存",
+      "exists": true,
+      "bytes": 481338362,
+      "sha256": "879479b9c03c7d217f1a058e0ebac3dc6c6819b6f4f7e523fd991a3735f3cdee"
+    },
+    {
+      "path": "artifacts/main_experiment/profile_features/train.profile-view.npz",
+      "role": "train hidden/given/shuffled profile向量",
+      "exists": true,
+      "bytes": 1387260,
+      "sha256": "afed14f645ac8581edd9cc9182a00362689fd69b934313918b41eb51c36746af"
+    },
+    {
+      "path": "data/processed/sbcsae_qwen_shared_ab_30s_causal_v1/val/reference_labels.jsonl",
+      "role": "val五分类与四任务标签",
+      "exists": true,
+      "bytes": 975833,
+      "sha256": "4dc76a0c5eb3e027f05d83e564ad569233cbdbd0f854d9c8e9f561bd46274cb2"
+    },
+    {
+      "path": "artifacts/main_experiment/qwen_feature_cache/val.qwen-hidden.npz",
+      "role": "val冻结Qwen音频/上下文特征缓存",
+      "exists": true,
+      "bytes": 162777970,
+      "sha256": "b13b0b992d7c75cc90e496b0b41d850476d7ffef0b4f340eb5b32c17662eefe9"
+    },
+    {
+      "path": "artifacts/main_experiment/profile_features/val.profile-view.npz",
+      "role": "val hidden/given/shuffled profile向量",
+      "exists": true,
+      "bytes": 456052,
+      "sha256": "61268803893f64f990b3890c42e525f1887cf7f690d485c58705e8c3d70c788f"
+    },
+    {
+      "path": "data/processed/sbcsae_qwen_shared_ab_30s_causal_v1/test/reference_labels.jsonl",
+      "role": "test五分类与四任务标签",
+      "exists": true,
+      "bytes": 841310,
+      "sha256": "7747f6857f6e885e5eb3d7862d06d0fda396c117ce2cfbdce83bb153ab1fdcc3"
+    },
+    {
+      "path": "artifacts/main_experiment/qwen_feature_cache/test.qwen-hidden.npz",
+      "role": "test冻结Qwen音频/上下文特征缓存",
+      "exists": true,
+      "bytes": 140729380,
+      "sha256": "d9c78120aecc7609eefe035b176d3cd844ff13a03ed4c43b0b71e9abc87666a3"
+    },
+    {
+      "path": "artifacts/main_experiment/profile_features/test.profile-view.npz",
+      "role": "test hidden/given/shuffled profile向量",
+      "exists": true,
+      "bytes": 371304,
+      "sha256": "c8fd78e36bb522d3e5df095f82ff41d5ff32a9abbb2c294dfd2acb755b992bab"
+    },
+    {
+      "path": "data/sbcsae/openslr/WAV/SBC005.wav",
+      "role": "原始SBCSAE音频；重建Qwen缓存时需要",
+      "exists": true,
+      "bytes": 108320812,
+      "sha256": null
+    },
+    {
+      "path": "data/sbcsae/openslr/WAV/SBC006.wav",
+      "role": "原始SBCSAE音频；重建Qwen缓存时需要",
+      "exists": true,
+      "bytes": 144265516,
+      "sha256": null
+    },
+    {
+      "path": "data/sbcsae/openslr/WAV/SBC007.wav",
+      "role": "原始SBCSAE音频；重建Qwen缓存时需要",
+      "exists": true,
+      "bytes": 122185696,
+      "sha256": null
+    },
+    {
+      "path": "data/sbcsae/openslr/WAV/SBC009.wav",
+      "role": "原始SBCSAE音频；重建Qwen缓存时需要",
+      "exists": true,
+      "bytes": 132268588,
+      "sha256": null
+    },
+    {
+      "path": "data/sbcsae/openslr/WAV/SBC010.wav",
+      "role": "原始SBCSAE音频；重建Qwen缓存时需要",
+      "exists": true,
+      "bytes": 82973740,
+      "sha256": null
+    },
+    {
+      "path": "data/sbcsae/openslr/WAV/SBC017.wav",
+      "role": "原始SBCSAE音频；重建Qwen缓存时需要",
+      "exists": true,
+      "bytes": 107437628,
+      "sha256": null
+    },
+    {
+      "path": "data/sbcsae/openslr/WAV/SBC024.wav",
+      "role": "原始SBCSAE音频；重建Qwen缓存时需要",
+      "exists": true,
+      "bytes": 140353764,
+      "sha256": null
+    },
+    {
+      "path": "data/sbcsae/openslr/WAV/SBC029.wav",
+      "role": "原始SBCSAE音频；重建Qwen缓存时需要",
+      "exists": true,
+      "bytes": 142868292,
+      "sha256": null
+    },
+    {
+      "path": "data/sbcsae/openslr/WAV/SBC034.wav",
+      "role": "原始SBCSAE音频；重建Qwen缓存时需要",
+      "exists": true,
+      "bytes": 130575296,
+      "sha256": null
+    },
+    {
+      "path": "data/sbcsae/openslr/WAV/SBC041.wav",
+      "role": "原始SBCSAE音频；重建Qwen缓存时需要",
+      "exists": true,
+      "bytes": 108803626,
+      "sha256": null
+    },
+    {
+      "path": "data/sbcsae/openslr/WAV/SBC043.wav",
+      "role": "原始SBCSAE音频；重建Qwen缓存时需要",
+      "exists": true,
+      "bytes": 132464718,
+      "sha256": null
+    },
+    {
+      "path": "data/sbcsae/openslr/WAV/SBC044.wav",
+      "role": "原始SBCSAE音频；重建Qwen缓存时需要",
+      "exists": true,
+      "bytes": 154125578,
+      "sha256": null
+    },
+    {
+      "path": "data/sbcsae/openslr/WAV/SBC045.wav",
+      "role": "原始SBCSAE音频；重建Qwen缓存时需要",
+      "exists": true,
+      "bytes": 160061552,
+      "sha256": null
+    },
+    {
+      "path": "data/sbcsae/openslr/WAV/SBC047.wav",
+      "role": "原始SBCSAE音频；重建Qwen缓存时需要",
+      "exists": true,
+      "bytes": 53493498,
+      "sha256": null
+    },
+    {
+      "path": "data/sbcsae/openslr/WAV/SBC058.wav",
+      "role": "原始SBCSAE音频；重建Qwen缓存时需要",
+      "exists": true,
+      "bytes": 136479396,
+      "sha256": null
+    },
+    {
+      "path": "data/sbcsae/openslr/WAV/SBC060.wav",
+      "role": "原始SBCSAE音频；重建Qwen缓存时需要",
+      "exists": true,
+      "bytes": 131405912,
+      "sha256": null
+    }
+  ],
+  "missing": [],
+  "complete": true
+}
